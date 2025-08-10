@@ -1,0 +1,554 @@
+import json
+import os
+import asyncio
+import schedule
+import time
+from datetime import datetime, timedelta
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import threading
+
+TOKEN = "7693058383:AAFV8h7He90C_VLvEDJXnHhxaUQohzeDBT4"
+PROMO_CODE = "SANA33"
+CONTACT_LINK = "https://t.me/El_professormindst"
+DATA_FILE = "users.json"
+ADMIN_CHAT_ID = 1754828167  # Votre ID Telegram réel (entier, pas chaîne)
+
+# Liens officiels ZACK PCS
+INFO_LINK = "https://bot9082.github.io/Info-/"
+TIPS_LINK = "https://bot9082.github.io/ZACK-CASH/"
+PLATFORM_LINK = "https://1wlucb.life/casino/list/4?p=169j"
+
+# Messages rotatifs personnalisés ZACK PCS
+DAILY_MESSAGES = [
+    """Hey {name} !  
+
+📌 ZACK PCS - Stratégies Casino Officielles 🎯
+
+🎰 Nouvelle astuce Aviator détectée aujourd'hui !
+⏰ Heures favorables : 14h-16h et 20h-22h
+🔥 Faille sur roulette européenne confirmée !
+💎 Machines à sous : patterns identifiés sur Book of Ra
+
+📚 Infos complètes : {info_link}
+📄 Astuces du jour : {tips_link}
+🎲 Plateforme recommandée 1win : {platform_link}
+
+🔑 Code promo : **{promo}** pour activer tous les avantages !
+💬 Support ZACK : {contact}""",
+
+    """Salut {name} !  
+
+🎯 ZACK PCS - Mise à jour stratégies 🚀
+
+💰 Gains observés : +850€ en 3h avec nos méthodes !
+⚡ Nouveau schéma détecté sur Crazy Time !
+🎲 Roulette : mise sur secteurs chauds = 73% réussite
+🎰 Aviator : coefficient optimal entre x1.4 et x2.1
+
+📖 Guide complet : {info_link}
+🔥 Dernières astuces : {tips_link}
+🏆 Inscription 1win : {platform_link}
+
+✅ Code **{promo}** = retraits rapides + bonus exclusifs
+📱 Contact direct : {contact}""",
+
+    """Hey {name} !  
+
+🔥 ZACK PCS - Alertes Failles Casino ⚠️
+
+🎰 URGENT : Faille Sweet Bonanza active jusqu'à minuit !
+💎 Machines progressives : jackpots près d'exploser !
+🎲 Roulette live : dealer favorable identifié salle 3
+⭐ Aviator : algorithme prévisible entre 18h-20h
+
+📋 Procédures détaillées : {info_link}
+💯 Stratégies actualisées : {tips_link}
+🎯 Plateforme sécurisée : {platform_link}
+
+🔑 OBLIGATOIRE : Code **{promo}** pour accès complet
+📞 Aide personnalisée : {contact}""",
+
+    """Bonjour {name} !  
+
+💸 ZACK PCS - Résultats Exceptionnels 📊
+
+🚀 Record battu : +1,200€ en une session !
+🎰 Aviator : 9 gains consécutifs avec notre timing
+🔥 Blackjack live : stratégie optimisée = 68% victoires
+💎 Slots volatiles : moments idéaux pour jouer gros
+
+📚 Méthodes complètes : {info_link}
+⚡ Tips actualisés : {tips_link}
+🏅 Compte optimisé 1win : {platform_link}
+
+✨ Code **{promo}** = avantages VIP instantanés
+💬 Questions ? Écris : {contact}""",
+
+    """Coucou {name} !  
+
+⭐ ZACK PCS - Opportunités Limitées ⏳
+
+🎯 DERNIÈRES 6H : Faille mega jackpot disponible !
+💰 Gains moyens constatés : +650€/jour avec nos tips
+🎲 Roulette française : série rouge/noir prévisible
+🎰 Gates of Olympus : multiplicateurs x500 fréquents
+
+📖 Accès formations : {info_link}
+🔥 Astuces temps réel : {tips_link}
+🎪 Interface optimale : {platform_link}
+
+🔑 Code magique **{promo}** pour débloquer tout
+📲 Support expert : {contact}"""
+]
+
+
+def load_users():
+    """Charge les utilisateurs depuis le fichier JSON"""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+
+def save_users(users_data):
+    """Sauvegarde les utilisateurs dans le fichier JSON"""
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(users_data, f, ensure_ascii=False, indent=2)
+
+
+def get_user_name(update: Update):
+    """Récupère le nom/pseudo de l'utilisateur"""
+    user = update.effective_user
+    if user.first_name:
+        return user.first_name
+    elif user.username:
+        return user.username
+    else:
+        return "ami"
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /start - Accueille et enregistre l'utilisateur"""
+    user_id = str(update.effective_user.id)
+    user_name = get_user_name(update)
+
+    # Charger les données existantes
+    users_data = load_users()
+
+    # Ajouter/mettre à jour l'utilisateur
+    users_data[user_id] = {
+        "name": user_name,
+        "username": update.effective_user.username,
+        "registered_date": datetime.now().isoformat(),
+        "last_message": None
+    }
+
+    # Sauvegarder
+    save_users(users_data)
+
+    welcome_message = f"""📌 Bienvenue {user_name} sur ZACK PCS !
+
+🎯 Canal officiel dédié aux stratégies et failles casino en ligne :
+• Astuces testées sur Aviator, roulette, machines à sous
+• Heures favorables basées sur des schémas réels  
+• Fuites et failles détectées sur certaines plateformes
+• Conseils pour optimiser tes chances
+
+📚 Infos générales : {INFO_LINK}
+📄 Astuces du jour : {TIPS_LINK}
+🎲 Plateforme recommandée 1win : {PLATFORM_LINK}
+
+💬 Code promo : **{PROMO_CODE}** (compte russe nécessaire)
+📱 Support direct : {CONTACT_LINK}
+
+⚠️ Important : Les astuces sont basées sur des observations. Joue toujours avec responsabilité.
+
+✅ Tu recevras maintenant des conseils personnalisés quotidiens !"""
+
+    await update.message.reply_text(welcome_message)
+
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /stats - Affiche les statistiques"""
+    users_data = load_users()
+    total_users = len(users_data)
+
+    stats_message = f"""📊 **Statistiques du bot :**
+
+👥 Total d'utilisateurs inscrits : **{total_users}**
+🎯 Code promo actif : **{PROMO_CODE}**
+📅 Dernière mise à jour : {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
+
+    await update.message.reply_text(stats_message)
+
+
+def send_auto_message_to_admin():
+    """Envoie un message automatique à l'admin dans 4 minutes"""
+    def send_message():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        app = ApplicationBuilder().token(TOKEN).build()
+        
+        auto_message = """🤖 MESSAGE AUTOMATIQUE ZACK PCS
+
+⏰ Il est temps de vérifier vos statistiques !
+📊 Consultez les nouveaux inscrits avec /stats
+🎯 Vérifiez les gains du jour sur vos plateformes
+💰 N'oubliez pas de poster les nouvelles astuces !
+
+🔥 Votre bot fonctionne parfaitement !
+📱 Restez connecté pour plus d'opportunités !"""
+
+        try:
+            loop.run_until_complete(app.bot.send_message(chat_id=int(ADMIN_CHAT_ID), text=auto_message))
+            print(f"✅ Message automatique envoyé à l'admin à {datetime.now()}")
+        except Exception as e:
+            print(f"❌ Erreur envoi message auto à l'admin: {e}")
+        finally:
+            loop.close()
+    
+    # Programmer l'envoi dans 4 minutes
+    timer = threading.Timer(240.0, send_message)  # 240 secondes = 4 minutes
+    timer.start()
+
+async def broadcast_daily_messages():
+    """Envoie les messages quotidiens à tous les utilisateurs + message test à l'admin"""
+    users_data = load_users()
+    
+    # Choisir un message du jour (rotation basée sur le jour de l'année)
+    day_of_year = datetime.now().timetuple().tm_yday
+    message_template = DAILY_MESSAGES[day_of_year % len(DAILY_MESSAGES)]
+
+    # Créer l'application pour envoyer des messages
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    sent_count = 0
+    
+    # Si pas d'utilisateurs, envoyer un message test à l'admin
+    if not users_data:
+        print("Aucun utilisateur enregistré, envoi d'un message test à l'admin")
+        try:
+            test_message = f"""🧪 MESSAGE TEST ZACK PCS
+
+👋 Salut Admin ! Voici un exemple de message quotidien :
+
+{message_template.format(
+                name="Admin", 
+                contact=CONTACT_LINK, 
+                promo=PROMO_CODE,
+                info_link=INFO_LINK,
+                tips_link=TIPS_LINK,
+                platform_link=PLATFORM_LINK
+            )}
+
+✅ Le système de messages automatiques fonctionne parfaitement !
+📊 Utilisateurs inscrits : 0 pour le moment"""
+
+            await app.bot.send_message(chat_id=int(ADMIN_CHAT_ID), text=test_message)
+            print("✅ Message test envoyé à l'admin")
+            return
+        except Exception as e:
+            print(f"❌ Erreur envoi message test à l'admin: {e}")
+            return
+
+    # Envoyer aux utilisateurs enregistrés
+    for user_id, user_data in users_data.items():
+        try:
+            # Personnaliser le message
+            personalized_message = message_template.format(
+                name=user_data["name"], 
+                contact=CONTACT_LINK, 
+                promo=PROMO_CODE,
+                info_link=INFO_LINK,
+                tips_link=TIPS_LINK,
+                platform_link=PLATFORM_LINK
+            )
+
+            # Envoyer le message
+            await app.bot.send_message(chat_id=int(user_id),
+                                       text=personalized_message)
+
+            # Mettre à jour la date du dernier message
+            users_data[user_id]["last_message"] = datetime.now().isoformat()
+            sent_count += 1
+
+            # Petite pause pour éviter le spam
+            await asyncio.sleep(1)
+
+        except Exception as e:
+            print(f"Erreur envoi message à {user_id}: {e}")
+
+    # Sauvegarder les mises à jour
+    save_users(users_data)
+    print(f"Messages quotidiens envoyés à {sent_count} utilisateurs")
+
+
+async def send_test_message(update: Update,
+                            context: ContextTypes.DEFAULT_TYPE):
+    """Commande /test - Envoie un message test personnalisé"""
+    user_name = get_user_name(update)
+    test_message = DAILY_MESSAGES[0].format(
+        name=user_name,
+        contact=CONTACT_LINK,
+        promo=PROMO_CODE,
+        info_link=INFO_LINK,
+        tips_link=TIPS_LINK,
+        platform_link=PLATFORM_LINK
+    )
+    await update.message.reply_text(f"📧 **Message test :**\n\n{test_message}")
+
+
+async def admin_panel_access(message_text, update: Update):
+    """Fonction pour gérer l'accès admin directement dans les messages"""
+    
+    # Vérifier si c'est juste le nom (demande du code)
+    if message_text == "SIHO ISAAC ROLAND":
+        await update.message.reply_text(f"""🔐 **Administrateur détecté !**
+        
+🎯 Nom reconnu : **SIHO ISAAC ROLAND**
+🔑 Veuillez maintenant saisir votre code d'accès personnel
+
+⚠️ Tapez votre nom suivi de votre code secret pour continuer""")
+        return True
+    
+    # Vérifier l'authentification complète
+    if message_text == "SIHO ISAAC ROLAND 840106":
+        # ACCÈS ADMIN AUTORISÉ - Afficher le panneau complet
+        users_data = load_users()
+        current_time = datetime.now()
+        
+        # Message d'accueil admin
+        admin_header = f"""👑 **PANNEAU ADMINISTRATION - ZACK PCS**
+🔓 Accès autorisé pour : **SIHO ISAAC ROLAND**
+⏰ Connexion : {current_time.strftime('%d/%m/%Y à %H:%M:%S')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+        
+        await update.message.reply_text(admin_header)
+        
+        # Statistiques générales du bot
+        total_users = len(users_data)
+        users_today = 0
+        users_week = 0
+        
+        for user_data in users_data.values():
+            reg_date = user_data.get("registered_date")
+            if reg_date:
+                try:
+                    reg_datetime = datetime.fromisoformat(reg_date)
+                    if reg_datetime.date() == current_time.date():
+                        users_today += 1
+                    if (current_time - reg_datetime).days <= 7:
+                        users_week += 1
+                except:
+                    pass
+        
+        stats_message = f"""📊 **STATISTIQUES DU BOT**
+
+👥 **Utilisateurs totaux :** {total_users}
+🆕 **Nouveaux aujourd'hui :** {users_today}
+📅 **Cette semaine :** {users_week}
+🔑 **Code promo actif :** {PROMO_CODE}
+🤖 **Status bot :** ✅ Opérationnel
+⏰ **Messages auto :** 9h00 et 18h00
+🔗 **Plateforme liée :** 1win Casino
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+        
+        await update.message.reply_text(stats_message)
+        
+        if not users_data:
+            await update.message.reply_text("📝 **Aucun utilisateur enregistré pour le moment.**")
+            return True
+        
+        # Liste détaillée des utilisateurs
+        users_list = "👥 **LISTE DÉTAILLÉE DES UTILISATEURS :**\n\n"
+        
+        for i, (user_id, user_data) in enumerate(users_data.items(), 1):
+            registered_date = user_data.get("registered_date", "Inconnue")
+            if registered_date != "Inconnue":
+                try:
+                    date_obj = datetime.fromisoformat(registered_date)
+                    formatted_date = date_obj.strftime("%d/%m/%Y à %H:%M")
+                except:
+                    formatted_date = "Date invalide"
+            else:
+                formatted_date = "Inconnue"
+            
+            last_message = user_data.get("last_message", "Jamais")
+            if last_message != "Jamais":
+                try:
+                    last_msg_obj = datetime.fromisoformat(last_message)
+                    last_msg_formatted = last_msg_obj.strftime("%d/%m/%Y à %H:%M")
+                except:
+                    last_msg_formatted = "Date invalide"
+            else:
+                last_msg_formatted = "Jamais"
+            
+            users_list += f"""**{i}.** {user_data.get('name', 'Nom inconnu')}
+📱 ID: `{user_id}`
+👤 Username: @{user_data.get('username', 'Aucun')}
+📅 Inscrit: {formatted_date}
+📧 Dernier message: {last_msg_formatted}
+➖➖➖➖➖➖➖➖➖➖
+
+"""
+        
+        users_list += f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **RÉSUMÉ FINAL**
+🎯 Total utilisateurs : **{len(users_data)}**
+👑 Admin connecté : **SIHO ISAAC ROLAND**
+🔐 Sécurité : ✅ Code 840106 validé"""
+        
+        # Envoyer en plusieurs messages si trop long
+        if len(users_list) > 4000:
+            chunks = [users_list[i:i+4000] for i in range(0, len(users_list), 4000)]
+            for chunk in chunks:
+                await update.message.reply_text(chunk)
+        else:
+            await update.message.reply_text(users_list)
+        
+        return True
+    
+    return False
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /help"""
+    help_text = f"""🤖 **Commandes disponibles :**
+
+/start - S'inscrire et recevoir l'accueil
+/test - Voir un exemple de message quotidien
+/stats - Voir les statistiques
+/help - Cette aide
+
+🔑 **Code promo :** {PROMO_CODE}
+📱 **Support :** {CONTACT_LINK}
+
+✅ Les messages personnalisés sont envoyés automatiquement chaque jour !"""
+
+    await update.message.reply_text(help_text)
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestion des messages non-commandes"""
+    message_text = update.message.text
+    message_text_lower = message_text.lower()
+    user_name = get_user_name(update)
+
+    # PRIORITÉ 1 : Vérifier l'accès admin direct (nom exact)
+    admin_handled = await admin_panel_access(message_text, update)
+    if admin_handled:
+        return
+
+    # Code secret pour test instantané
+    if "111222" in message_text_lower:
+        await update.message.reply_text("🧪 TEST INSTANTANÉ ACTIVÉ ! Message automatique dans 10 secondes...")
+        
+        # Programmer un message de test dans 10 secondes
+        def send_instant_test():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            app = ApplicationBuilder().token(TOKEN).build()
+            
+            # Choisir un message aléatoire
+            import random
+            test_message_template = random.choice(DAILY_MESSAGES)
+            
+            instant_message = f"""🔥 TEST INSTANTANÉ RÉUSSI ! 
+
+{test_message_template.format(
+                name=user_name, 
+                contact=CONTACT_LINK, 
+                promo=PROMO_CODE,
+                info_link=INFO_LINK,
+                tips_link=TIPS_LINK,
+                platform_link=PLATFORM_LINK
+            )}
+
+✅ Votre bot fonctionne parfaitement !
+🎯 Les messages automatiques sont opérationnels !"""
+
+            try:
+                loop.run_until_complete(app.bot.send_message(chat_id=update.effective_chat.id, text=instant_message))
+                print(f"✅ Message de test instantané envoyé à {user_name}")
+            except Exception as e:
+                print(f"❌ Erreur test instantané: {e}")
+            finally:
+                loop.close()
+        
+        # Lancer dans 10 secondes
+        timer = threading.Timer(10.0, send_instant_test)
+        timer.start()
+        
+    elif PROMO_CODE.lower() in message_text_lower:
+        await update.message.reply_text(
+            f"🎯 Parfait {user_name} ! Tu as mentionné le code {PROMO_CODE}. Tu es dans le bon chemin pour maximiser tes gains ! 💰"
+        )
+    elif any(word in message_text_lower
+             for word in ["aide", "help", "problème", "question"]):
+        await update.message.reply_text(
+            f"📞 {user_name}, je suis là pour t'aider ! Contacte-moi directement : {CONTACT_LINK}"
+        )
+    elif any(word in message_text_lower for word in ["merci", "thanks"]):
+        await update.message.reply_text(
+            f"🙏 De rien {user_name} ! Continue comme ça, les gains vont exploser ! 🚀"
+        )
+
+
+def schedule_daily_messages():
+    """Programme les messages quotidiens"""
+    def run_broadcast():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(broadcast_daily_messages())
+        loop.close()
+
+    schedule.every().day.at("09:00").do(run_broadcast)
+    schedule.every().day.at("18:00").do(run_broadcast)
+    
+    # Message test dans 2 minutes pour vérifier que ça marche
+    import datetime
+    test_time = (datetime.datetime.now() + datetime.timedelta(minutes=2)).strftime("%H:%M")
+    schedule.every().day.at(test_time).do(run_broadcast)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(30)  # Vérifier toutes les 30 secondes
+
+
+if __name__ == "__main__":
+    print("🚀 Démarrage du bot ZACK PCS...")
+
+    # Création de l'application
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    # Ajout des handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("test", send_test_message))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Démarrer le scheduler dans un thread séparé
+    scheduler_thread = threading.Thread(target=schedule_daily_messages,
+                                        daemon=True)
+    scheduler_thread.start()
+    
+    # Démarrer le message automatique dans 4 minutes
+    send_auto_message_to_admin()
+
+    print("🤖 Bot ZACK PCS démarré ! En attente de nouveaux utilisateurs...")
+    print(f"📧 Messages automatiques programmés à 9h et 18h")
+    print(f"⏰ Message automatique à l'admin dans 4 minutes")
+    print(f"🔑 Code promo actif : {PROMO_CODE}")
+
+    # Démarrage du bot
+    app.run_polling()
