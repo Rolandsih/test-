@@ -1,1 +1,1389 @@
 
+import json
+import os
+import asyncio
+import schedule
+import time
+from datetime import datetime, timedelta
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import threading
+
+TOKEN = "7997467039:AAF86L8qutp9OzG8K5Hfwh1LG4cePd6BPas"
+PROMO_CODE = "SANA33"
+CONTACT_LINK = "https://t.me/ZACKCASH22"
+DATA_FILE = "users.json"
+MESSAGES_FILE = "saved_messages.json"
+ADMIN_CHAT_ID = None  # Sera défini automatiquement lors de la première connexion admin
+
+# Système de gestion d'états pour la diffusion
+broadcast_states = {}
+
+# Liens officiels ZACK PCS
+INFO_LINK = "https://bot9082.github.io/Info-/"
+TIPS_LINK = "https://bot9082.github.io/ZACK-CASH/"
+PLATFORM_LINK = "https://1wlucb.life/casino/list/4?p=169j"
+
+# Messages rotatifs personnalisés ZACK PCS
+DAILY_MESSAGES = [
+    """Hey {name} !  
+
+📌 ZACK PCS - Stratégies Casino Officielles 🎯
+
+🎰 Nouvelle astuce Aviator détectée aujourd'hui !
+⏰ Heures favorables : 14h-16h et 20h-22h
+🔥 Faille sur roulette européenne confirmée !
+💎 Machines à sous : patterns identifiés sur Book of Ra
+
+📚 Infos complètes : {info_link}
+📄 Astuces du jour : {tips_link}
+🎲 Plateforme recommandée 1win : {platform_link}
+
+🔑 Code promo : **{promo}** pour activer tous les avantages !
+💬 Support ZACK : {contact}""",
+
+    """Salut {name} !  
+
+🎯 ZACK PCS - Mise à jour stratégies 🚀
+
+💰 Gains observés : +850€ en 3h avec nos méthodes !
+⚡ Nouveau schéma détecté sur Crazy Time !
+🎲 Roulette : mise sur secteurs chauds = 73% réussite
+🎰 Aviator : coefficient optimal entre x1.4 et x2.1
+
+📖 Guide complet : {info_link}
+🔥 Dernières astuces : {tips_link}
+🏆 Inscription 1win : {platform_link}
+
+✅ Code **{promo}** = retraits rapides + bonus exclusifs
+📱 Contact direct : {contact}""",
+
+    """Hey {name} !  
+
+🔥 ZACK PCS - Alertes Failles Casino ⚠️
+
+🎰 URGENT : Faille Sweet Bonanza active jusqu'à minuit !
+💎 Machines progressives : jackpots près d'exploser !
+🎲 Roulette live : dealer favorable identifié salle 3
+⭐ Aviator : algorithme prévisible entre 18h-20h
+
+📋 Procédures détaillées : {info_link}
+💯 Stratégies actualisées : {tips_link}
+🎯 Plateforme sécurisée : {platform_link}
+
+🔑 OBLIGATOIRE : Code **{promo}** pour accès complet
+📞 Aide personnalisée : {contact}""",
+
+    """Bonjour {name} !  
+
+💸 ZACK PCS - Résultats Exceptionnels 📊
+
+🚀 Record battu : +1,200€ en une session !
+🎰 Aviator : 9 gains consécutifs avec notre timing
+🔥 Blackjack live : stratégie optimisée = 68% victoires
+💎 Slots volatiles : moments idéaux pour jouer gros
+
+📚 Méthodes complètes : {info_link}
+⚡ Tips actualisés : {tips_link}
+🏅 Compte optimisé 1win : {platform_link}
+
+✨ Code **{promo}** = avantages VIP instantanés
+💬 Questions ? Écris : {contact}""",
+
+    """Coucou {name} !  
+
+⭐ ZACK PCS - Opportunités Limitées ⏳
+
+🎯 DERNIÈRES 6H : Faille mega jackpot disponible !
+💰 Gains moyens constatés : +650€/jour avec nos tips
+🎲 Roulette française : série rouge/noir prévisible
+🎰 Gates of Olympus : multiplicateurs x500 fréquents
+
+📖 Accès formations : {info_link}
+🔥 Astuces temps réel : {tips_link}
+🎪 Interface optimale : {platform_link}
+
+🔑 Code magique **{promo}** pour débloquer tout
+📲 Support expert : {contact}""",
+
+    """Bonsoir {name} ! 🌙
+
+🎲 ZACK PCS - Session Nocturne Spéciale 
+🦉 Les nuits sont les plus rentables sur 1win !
+🎰 Aviator : moins de concurrence = plus de gains
+💰 Roulette after midnight : tendances prévisibles
+🔥 Bonus nocturnes jusqu'à +200% disponibles !
+
+📊 Stats prouvées : +40% gains de 22h à 2h
+⚡ Multiplicateurs fréquents détectés
+🎯 Jackpots progressifs : seuils critiques atteints
+
+📚 Guide nocturne : {info_link}
+🔥 Stratégies nuit : {tips_link}
+🌙 Session optimale : {platform_link}
+
+🔑 Code nuit **{promo}** = bonus supplémentaires
+💬 Support 24h/7j : {contact}""",
+
+    """Hello {name} ! 👋
+
+🚨 ZACK PCS - Alerte Gains Exceptionnels 
+💥 BREAKING : Nouveau record établi +2,400€ !
+🎰 Technique secrète révélée aujourd'hui uniquement
+🔥 5 utilisateurs ont dépassé 1000€ cette semaine
+⚡ Pattern exceptionnel découvert sur Plinko
+
+🎯 Résultats cette semaine :
+• Aviator : 89% de réussite
+• Roulette : 76% sur nos secteurs
+• Slots : x1000+ atteints 3 fois
+
+📖 Méthode complète : {info_link}
+🔥 Techniques avancées : {tips_link}
+🏆 Plateforme premium : {platform_link}
+
+🔑 Code VIP **{promo}** = accès prioritaire
+📞 Coaching perso : {contact}""",
+
+    """Yo {name} ! 🔥
+
+⚡ ZACK PCS - Flash Info Casino 
+🎯 URGENT : Maintenance 1win prévue demain 14h !
+💰 Profitez maintenant avant l'interruption
+🎰 Aviator : coefficient x25 observé 3 fois aujourd'hui  
+🔥 Sweet Bonanza : free spins en masse détectés
+
+⏰ Créneaux optimaux restants :
+• 16h-18h : Roulette européenne  
+• 19h-21h : Machines volatiles
+• 22h-00h : Aviator premium
+
+📚 Stratégies flash : {info_link}
+⚡ Tips minute : {tips_link}
+🎲 Accès direct : {platform_link}
+
+🔑 Code flash **{promo}** = bonus immédiat
+💬 Urgence ? Contacte : {contact}"""
+]
+
+
+def load_users():
+    """Charge les utilisateurs depuis le fichier JSON"""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+
+def save_users(users_data):
+    """Sauvegarde les utilisateurs dans le fichier JSON"""
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(users_data, f, ensure_ascii=False, indent=2)
+
+
+def load_saved_messages():
+    """Charge les messages sauvegardés depuis le fichier JSON"""
+    if os.path.exists(MESSAGES_FILE):
+        try:
+            with open(MESSAGES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+
+def save_messages(messages_data):
+    """Sauvegarde les messages dans le fichier JSON"""
+    with open(MESSAGES_FILE, 'w', encoding='utf-8') as f:
+        json.dump(messages_data, f, ensure_ascii=False, indent=2)
+
+
+def get_user_name(update: Update):
+    """Récupère le nom/pseudo de l'utilisateur"""
+    user = update.effective_user
+    if user.first_name:
+        return user.first_name
+    elif user.username:
+        return user.username
+    else:
+        return "ami"
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /start - Accueille et enregistre l'utilisateur"""
+    user_id = str(update.effective_user.id)
+    user_name = get_user_name(update)
+
+    # Charger les données existantes
+    users_data = load_users()
+
+    # Ajouter/mettre à jour l'utilisateur
+    users_data[user_id] = {
+        "name": user_name,
+        "username": update.effective_user.username,
+        "registered_date": datetime.now().isoformat(),
+        "last_message": None
+    }
+
+    # Sauvegarder
+    save_users(users_data)
+
+    welcome_message = f"""🎯 BIENVENUE {user_name.upper()} DANS L'ÉLITE ZACK PCS !
+
+🔥 Tu viens de rejoindre le cercle privé des stratégies casino les plus rentables :
+
+💰 GAINS QUOTIDIENS OBSERVÉS :
+• Aviator : +450€ à +1,200€ par session
+• Roulette Live : 73% de réussite sur nos secteurs
+• Machines à sous : Multiplicateurs x500+ fréquents
+• Blackjack VIP : Stratégies optimisées = 68% victoires
+
+⚡ ACCÈS IMMÉDIAT À :
+🎲 Failles détectées en temps réel
+📊 Heures favorables calculées par IA
+🎯 Patterns exclusifs sur 1win Casino
+🔍 Alertes multiplicateurs exceptionnels
+
+📚 Ressources VIP : {INFO_LINK}
+🔥 Astuces temps réel : {TIPS_LINK}
+🏆 Plateforme premium : {PLATFORM_LINK}
+
+🔑 Code magique : {PROMO_CODE} (activation instantanée)
+💬 Support expert 24/7 : {CONTACT_LINK}
+
+🚨 ATTENTION : Nos méthodes ont permis +15,000€ de gains cette semaine !
+
+✅ Messages personnalisés activés - Prépare-toi à exploser tes gains !"""
+
+    await update.message.reply_text(welcome_message)
+
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /stats - Affiche les statistiques"""
+    users_data = load_users()
+    saved_messages = load_saved_messages()
+    total_users = len(users_data)
+    total_saved_messages = len(saved_messages)
+
+    stats_message = f"""📊 **Statistiques du bot :**
+
+👥 Total d'utilisateurs inscrits : **{total_users}**
+📧 Messages sauvegardés : **{total_saved_messages}**
+🔑 Code promo actif : **{PROMO_CODE}**
+📅 Dernière mise à jour : {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
+
+    await update.message.reply_text(stats_message)
+
+
+async def broadcast_daily_messages():
+    """Envoie les messages quotidiens à tous les utilisateurs"""
+    global ADMIN_CHAT_ID
+
+    users_data = load_users()
+
+    # Choisir un message du jour (rotation basée sur le jour de l'année)
+    day_of_year = datetime.now().timetuple().tm_yday
+    message_template = DAILY_MESSAGES[day_of_year % len(DAILY_MESSAGES)]
+
+    # Créer l'application pour envoyer des messages
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    sent_count = 0
+
+    # Si pas d'utilisateurs ET que l'admin est connecté, envoyer un message test
+    if not users_data and ADMIN_CHAT_ID is not None:
+        print("Aucun utilisateur enregistré, envoi d'un message test à l'admin")
+        try:
+            test_message = f"""🧪 MESSAGE TEST ZACK PCS
+
+👋 Salut Admin ! Voici un exemple de message quotidien :
+
+{message_template.format(
+                name="Admin", 
+                contact=CONTACT_LINK, 
+                promo=PROMO_CODE,
+                info_link=INFO_LINK,
+                tips_link=TIPS_LINK,
+                platform_link=PLATFORM_LINK
+            )}
+
+✅ Le système de messages automatiques fonctionne parfaitement !
+📊 Utilisateurs inscrits : 0 pour le moment"""
+
+            await app.bot.send_message(chat_id=int(ADMIN_CHAT_ID), text=test_message)
+            print("✅ Message test envoyé à l'admin")
+            return
+        except Exception as e:
+            print(f"❌ Erreur envoi message test à l'admin: {e}")
+            return
+
+    # Envoyer aux utilisateurs enregistrés
+    for user_id, user_data in users_data.items():
+        try:
+            # Personnaliser le message
+            personalized_message = message_template.format(
+                name=user_data["name"], 
+                contact=CONTACT_LINK, 
+                promo=PROMO_CODE,
+                info_link=INFO_LINK,
+                tips_link=TIPS_LINK,
+                platform_link=PLATFORM_LINK
+            )
+
+            # Envoyer le message
+            await app.bot.send_message(chat_id=int(user_id), text=personalized_message)
+
+            # Mettre à jour la date du dernier message
+            users_data[user_id]["last_message"] = datetime.now().isoformat()
+            sent_count += 1
+
+            # Petite pause pour éviter le spam
+            await asyncio.sleep(1)
+
+        except Exception as e:
+            print(f"Erreur envoi message à {user_id}: {e}")
+
+    # Sauvegarder les mises à jour
+    save_users(users_data)
+    print(f"Messages quotidiens envoyés à {sent_count} utilisateurs")
+
+
+async def send_test_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /test - Envoie un message test personnalisé"""
+    user_name = get_user_name(update)
+    test_message = DAILY_MESSAGES[0].format(
+        name=user_name,
+        contact=CONTACT_LINK,
+        promo=PROMO_CODE,
+        info_link=INFO_LINK,
+        tips_link=TIPS_LINK,
+        platform_link=PLATFORM_LINK
+    )
+    await update.message.reply_text(f"📧 **Message test :**\n\n{test_message}")
+
+
+# Système de menus spéciaux
+secret_menus = {}
+
+async def admin_panel_access(message_text, update: Update):
+    """Fonction pour gérer l'accès admin directement dans les messages"""
+    global ADMIN_CHAT_ID
+
+    # NOUVEAU : Code secret LMM8 pour accès au menu de gestion
+    if message_text == "LMM8":
+        user_id = update.effective_user.id
+        user_name = get_user_name(update)
+        
+        # Activer le menu secret pour cet utilisateur
+        secret_menus[user_id] = {
+            "active": True,
+            "step": "main_menu"
+        }
+        
+        menu_message = f"""🔐 MENU SECRET ACTIVÉ
+👋 Salut {user_name} !
+
+🎯 Options disponibles :
+
+1️⃣ AJOUTER MESSAGE - Créer un nouveau message quotidien
+2️⃣ VOIR MESSAGES - Liste complète des messages sauvegardés  
+3️⃣ SUPPRIMER MESSAGE - Effacer un message spécifique
+4️⃣ SUPPRIMER TOUS - Vider tous les messages personnalisés
+5️⃣ DIFFUSER MAINTENANT - Envoyer un message immédiatement
+6️⃣ STATISTIQUES - Voir les stats du bot
+7️⃣ QUITTER - Fermer ce menu
+
+📝 Tapez le numéro de votre choix (1 à 7)
+🖼️ Support complet : Images, vidéos et documents acceptés !"""
+
+        await update.message.reply_text(menu_message)
+        return True
+
+    # Ancien système admin (gardé en backup)
+    if message_text == "SIHO ISAAC ROLAND 840106":
+        ADMIN_CHAT_ID = update.effective_user.id
+        print(f"✅ ADMIN_CHAT_ID défini automatiquement : {ADMIN_CHAT_ID}")
+
+        users_data = load_users()
+        saved_messages = load_saved_messages()
+        current_time = datetime.now()
+
+        admin_header = f"""👑 **PANNEAU ADMINISTRATION - ZACK PCS**
+🔓 Accès autorisé pour : **SIHO ISAAC ROLAND**
+⏰ Connexion : {current_time.strftime('%d/%m/%Y à %H:%M:%S')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+
+        await update.message.reply_text(admin_header)
+
+        total_users = len(users_data)
+        total_saved_messages = len(saved_messages)
+
+        stats_message = f"""📊 **STATISTIQUES DU BOT**
+
+👥 **Utilisateurs totaux :** {total_users}
+📧 **Messages sauvegardés :** {total_saved_messages}
+🔑 **Code promo actif :** {PROMO_CODE}
+🤖 **Status bot :** ✅ Opérationnel
+⏰ **Messages auto :** 9h00 et 18h00
+🔗 **Plateforme liée :** 1win Casino
+
+🎯 **Commandes disponibles :**
+• `/broadcast` - Diffuser un message
+• `/stats` - Voir les statistiques
+• `/test` - Tester un message
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+
+        await update.message.reply_text(stats_message)
+        return True
+
+    return False
+
+
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /broadcast - Diffusion de messages pour les administrateurs"""
+    global ADMIN_CHAT_ID
+
+    user_id = update.effective_user.id
+
+    # Vérifier si c'est l'administrateur
+    if ADMIN_CHAT_ID is None or user_id != ADMIN_CHAT_ID:
+        await update.message.reply_text("❌ Accès refusé. Vous devez d'abord vous connecter avec le code admin.")
+        return
+
+    # Initialiser l'état de diffusion pour cet admin
+    broadcast_states[user_id] = {
+        "step": "waiting_message",
+        "message": None,
+        "media_type": None,
+        "media_file": None
+    }
+
+    await update.message.reply_text("""📢 **MODE DIFFUSION ACTIVÉ**
+
+👑 Admin connecté : **SIHO ISAAC ROLAND**
+
+📝 **Étape 1/3 :** Saisissez le message que vous souhaitez diffuser à tous vos utilisateurs.
+
+🖼️ **NOUVEAU :** Vous pouvez aussi envoyer des images ou vidéos avec votre message !
+
+⚠️ Ce message sera envoyé à tous les utilisateurs inscrits au bot ZACK PCS.
+
+✍️ Tapez votre message maintenant ou envoyez une image/vidéo :""")
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /help"""
+    global ADMIN_CHAT_ID
+
+    user_id = update.effective_user.id
+
+    if ADMIN_CHAT_ID is not None and user_id == ADMIN_CHAT_ID:
+        help_text = f"""🤖 **Commandes disponibles (ADMIN) :**
+
+/start - S'inscrire et recevoir l'accueil
+/test - Voir un exemple de message quotidien
+/stats - Voir les statistiques
+/broadcast - 📢 Diffuser un message à tous les utilisateurs
+/help - Cette aide
+
+🔐 **Menu secret :** Tapez **LMM8** pour accéder aux fonctions avancées
+
+🔑 **Code promo :** {PROMO_CODE}
+📱 **Support :** {CONTACT_LINK}
+
+✅ Les messages personnalisés sont envoyés automatiquement chaque jour !"""
+    else:
+        help_text = f"""🤖 **Commandes disponibles :**
+
+/start - S'inscrire et recevoir l'accueil
+/test - Voir un exemple de message quotidien
+/stats - Voir les statistiques
+/help - Cette aide
+
+🔑 **Code promo :** {PROMO_CODE}
+📱 **Support :** {CONTACT_LINK}
+
+✅ Les messages personnalisés sont envoyés automatiquement chaque jour !"""
+
+    await update.message.reply_text(help_text)
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestion des messages non-commandes"""
+    message_text = update.message.text if update.message.text else ""
+    user_id = update.effective_user.id
+
+    # PRIORITÉ 1 : Gérer le processus de diffusion si actif
+    if user_id in broadcast_states:
+        await handle_broadcast_process(update, context)
+        return
+
+    # PRIORITÉ 2 : Gérer le menu secret si actif
+    if user_id in secret_menus:
+        await handle_secret_menu(update, context)
+        return
+
+    # PRIORITÉ 3 : Vérifier l'accès admin direct
+    if message_text:
+        admin_handled = await admin_panel_access(message_text, update)
+        if admin_handled:
+            return
+
+    # PRIORITÉ 4 : Réponses automatiques basiques
+    user_name = get_user_name(update)
+    if message_text:
+        message_text_lower = message_text.lower()
+
+        if PROMO_CODE.lower() in message_text_lower:
+            await update.message.reply_text(
+                f"🎯 Parfait {user_name} ! Tu as mentionné le code {PROMO_CODE}. Tu es dans le bon chemin pour maximiser tes gains ! 💰"
+            )
+        elif any(word in message_text_lower for word in ["aide", "help", "problème", "question"]):
+            await update.message.reply_text(
+                f"📞 {user_name}, je suis là pour t'aider ! Contacte-moi directement : {CONTACT_LINK}"
+            )
+        elif any(word in message_text_lower for word in ["merci", "thanks"]):
+            await update.message.reply_text(
+                f"🙏 De rien {user_name} ! Continue comme ça, les gains vont exploser ! 🚀"
+            )
+
+
+async def handle_secret_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère le menu secret LMM8"""
+    user_id = update.effective_user.id
+    message_text = update.message.text if update.message.text else ""
+    
+    if user_id not in secret_menus:
+        return
+    
+    # Vérifier si c'est un état temporaire après sortie
+    if secret_menus[user_id].get("temp_exit", False):
+        # Nettoyer l'état temporaire
+        del secret_menus[user_id]
+        return
+    
+    # NOUVELLE FONCTIONNALITÉ : Commande universelle pour sortir du menu
+    if message_text.upper() in ["SORTIR", "EXIT", "QUITTER", "RETOUR"]:
+        # Supprimer le dernier message du bot s'il existe
+        if 'last_bot_message_id' in secret_menus[user_id]:
+            try:
+                await context.bot.delete_message(
+                    chat_id=user_id, 
+                    message_id=secret_menus[user_id]['last_bot_message_id']
+                )
+            except:
+                pass
+        
+        del secret_menus[user_id]
+        await update.message.reply_text("""🚪 SORTIE DU MENU RÉUSSIE
+
+✅ Vous avez quitté le menu secret avec succès.
+💡 Tapez **LMM8** à nouveau pour rouvrir le menu.
+
+🎯 Merci d'avoir utilisé le système de gestion ZACK PCS !""")
+        return
+        
+    menu_state = secret_menus[user_id]
+    
+    # Vérifier que l'état a bien une clé "step"
+    if "step" not in menu_state:
+        # Réinitialiser l'état du menu en cas de problème
+        secret_menus[user_id] = {
+            "active": True,
+            "step": "main_menu"
+        }
+        menu_state = secret_menus[user_id]
+    
+    # Menu principal
+    if menu_state["step"] == "main_menu":
+        # Supprimer le message précédent du bot s'il existe
+        if 'last_bot_message_id' in menu_state:
+            try:
+                await context.bot.delete_message(
+                    chat_id=user_id, 
+                    message_id=menu_state['last_bot_message_id']
+                )
+            except:
+                pass
+        
+        if message_text == "1":
+            # Ajouter un message
+            secret_menus[user_id]["step"] = "add_message"
+            sent_message = await update.message.reply_text("""✍️ AJOUTER UN NOUVEAU MESSAGE
+
+📝 Tapez le message que vous voulez ajouter à la liste des messages quotidiens.
+
+🖼️ NOUVEAU : Vous pouvez aussi envoyer une image ou vidéo avec votre message !
+
+⚡ Ce message sera ajouté aux messages rotatifs et envoyé automatiquement aux utilisateurs.
+
+💡 Variables disponibles :
+• {name} - Nom de l'utilisateur
+• {contact} - Lien de contact  
+• {promo} - Code promo
+• {info_link} - Lien d'informations
+• {tips_link} - Lien des astuces
+• {platform_link} - Lien de la plateforme
+
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu à tout moment
+
+✍️ Tapez votre message maintenant ou envoyez une image/vidéo :""")
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            
+        elif message_text == "2":
+            # Voir les messages existants
+            saved_messages = load_saved_messages()
+            total_daily = len(DAILY_MESSAGES)
+            total_saved = len(saved_messages)
+            
+            if not saved_messages:
+                messages_list = f"""📋 MESSAGES SAUVEGARDÉS
+
+📊 Messages quotidiens par défaut : {total_daily}
+💾 Messages personnalisés : 0
+📧 Total : {total_daily}
+
+❌ Aucun message personnalisé sauvegardé.
+
+💡 Options :
+• Tapez 1 pour ajouter votre premier message
+• Tapez 7 pour revenir au menu principal
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu"""
+            else:
+                messages_list = f"""📋 LISTE COMPLÈTE DES MESSAGES
+
+📊 Messages quotidiens par défaut : {total_daily}
+💾 Messages personnalisés : {total_saved}
+📧 Total : {total_daily + total_saved}
+
+📝 VOS MESSAGES PERSONNALISÉS :
+
+"""
+                for i, msg in enumerate(saved_messages, 1):
+                    preview = msg['content'][:80] + "..." if len(msg['content']) > 80 else msg['content']
+                    msg_type = f"[{msg['type'].upper()}] " if msg['type'] != 'text' else ""
+                    date_created = msg.get('created_date', '')[:10] if msg.get('created_date') else 'Date inconnue'
+                    messages_list += f"{i}. {msg_type}{preview}\n   📅 Créé le : {date_created}\n\n"
+                
+                messages_list += f"""💡 Options :
+🔙 Tapez 7 pour revenir au menu principal
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu"""
+            
+            sent_message = await update.message.reply_text(messages_list)
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            
+        elif message_text == "3":
+            # Supprimer un message spécifique
+            saved_messages = load_saved_messages()
+            if not saved_messages:
+                sent_message = await update.message.reply_text("""❌ AUCUN MESSAGE À SUPPRIMER
+
+📭 Vous n'avez pas encore de messages personnalisés sauvegardés.
+
+💡 Options :
+1️⃣ Ajouter un message d'abord
+7️⃣ Revenir au menu principal
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu
+
+📝 Tapez votre choix :""")
+                secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            else:
+                secret_menus[user_id]["step"] = "delete_one_message"
+                delete_list = """🗑️ SUPPRIMER UN MESSAGE SPÉCIFIQUE
+
+📝 Voici la liste de vos messages personnalisés :
+
+"""
+                for i, msg in enumerate(saved_messages, 1):
+                    preview = msg['content'][:100] + "..." if len(msg['content']) > 100 else msg['content']
+                    msg_type = f"[{msg['type'].upper()}] " if msg['type'] != 'text' else ""
+                    date_created = msg.get('created_date', '')[:10] if msg.get('created_date') else 'Date inconnue'
+                    delete_list += f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{i}️⃣ {msg_type}MESSAGE #{i}
+📅 Créé le : {date_created}
+📝 Contenu : {preview}
+
+"""
+                
+                delete_list += f"""🔢 Tapez le numéro du message à supprimer (1-{len(saved_messages)})
+❌ Tapez 0 pour annuler et revenir au menu
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu"""
+                
+                sent_message = await update.message.reply_text(delete_list)
+                secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            
+        elif message_text == "4":
+            # Supprimer TOUS les messages
+            saved_messages = load_saved_messages()
+            if not saved_messages:
+                sent_message = await update.message.reply_text("""❌ AUCUN MESSAGE À SUPPRIMER
+
+📭 Vous n'avez pas de messages personnalisés sauvegardés.
+
+💡 Tapez 1 pour ajouter un message.
+🔙 Tapez 7 pour revenir au menu principal.
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu""")
+                secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            else:
+                secret_menus[user_id]["step"] = "delete_all_messages"
+                sent_message = await update.message.reply_text(f"""⚠️ SUPPRIMER TOUS LES MESSAGES
+
+🗑️ Vous êtes sur le point de supprimer TOUS vos messages personnalisés !
+
+📊 Messages qui seront supprimés : {len(saved_messages)}
+⚠️ Cette action est IRRÉVERSIBLE !
+
+❓ Êtes-vous sûr de vouloir continuer ?
+
+✅ Tapez OUI pour confirmer la suppression
+❌ Tapez NON pour annuler
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu""")
+                secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+        
+        elif message_text == "5":
+            # Diffuser maintenant
+            secret_menus[user_id]["step"] = "broadcast_now"
+            sent_message = await update.message.reply_text("""📢 DIFFUSION IMMÉDIATE
+
+📝 Tapez le message que vous voulez envoyer maintenant à tous les utilisateurs.
+
+🖼️ NOUVEAU : Vous pouvez aussi envoyer une image ou vidéo !
+
+⚠️ Ce message sera envoyé immédiatement, pas ajouté aux messages quotidiens.
+
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu à tout moment
+
+✍️ Tapez votre message ou envoyez un média :""")
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            
+        elif message_text == "6":
+            # Statistiques
+            users_data = load_users()
+            saved_messages = load_saved_messages()
+            stats_msg = f"""📊 STATISTIQUES COMPLÈTES
+
+👥 Utilisateurs inscrits : {len(users_data)}
+📧 Messages quotidiens par défaut : {len(DAILY_MESSAGES)}
+💾 Messages personnalisés : {len(saved_messages)}
+🔑 Code promo actif : {PROMO_CODE}
+⏰ Envois programmés : 9h00 et 18h00
+📅 Dernière activité : {datetime.now().strftime('%d/%m/%Y %H:%M')}
+
+🔙 Tapez 7 pour revenir au menu principal
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu"""
+            sent_message = await update.message.reply_text(stats_msg)
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            
+        elif message_text == "7":
+            # Quitter
+            # Supprimer le message précédent du bot
+            if 'last_bot_message_id' in menu_state:
+                try:
+                    await context.bot.delete_message(
+                        chat_id=user_id, 
+                        message_id=menu_state['last_bot_message_id']
+                    )
+                except:
+                    pass
+            
+            del secret_menus[user_id]
+            await update.message.reply_text("""✅ MENU FERMÉ
+
+🔐 Session terminée avec succès.
+💡 Tapez **LMM8** à nouveau pour rouvrir le menu secret.
+
+🎯 Merci d'avoir utilisé le système de gestion ZACK PCS !""")
+            
+        else:
+            sent_message = await update.message.reply_text("""❌ Option invalide
+
+🎯 Choisissez un numéro entre 1 et 7 :
+
+1️⃣ Ajouter message
+2️⃣ Voir messages  
+3️⃣ Supprimer message
+4️⃣ Supprimer tous
+5️⃣ Diffuser maintenant
+6️⃣ Statistiques
+7️⃣ Quitter
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu""")
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+    
+    # Ajouter un nouveau message
+    elif menu_state["step"] == "add_message":
+        # Supprimer le message précédent du bot
+        if 'last_bot_message_id' in menu_state:
+            try:
+                await context.bot.delete_message(
+                    chat_id=user_id, 
+                    message_id=menu_state['last_bot_message_id']
+                )
+            except:
+                pass
+        
+        # Déterminer le type de message
+        message_type = "text"
+        media_file_id = None
+        content = message_text
+        
+        if update.message.photo:
+            message_type = "photo"
+            media_file_id = update.message.photo[-1].file_id
+            content = update.message.caption or ""
+        elif update.message.video:
+            message_type = "video"
+            media_file_id = update.message.video.file_id
+            content = update.message.caption or ""
+        elif update.message.document:
+            message_type = "document"
+            media_file_id = update.message.document.file_id
+            content = update.message.caption or ""
+        
+        # Sauvegarder le message
+        saved_messages = load_saved_messages()
+        new_message = {
+            "id": len(saved_messages) + 1,
+            "type": message_type,
+            "content": content,
+            "media_file_id": media_file_id,
+            "created_date": datetime.now().isoformat()
+        }
+        saved_messages.append(new_message)
+        save_messages(saved_messages)
+        
+        message_type_text = {"photo": "🖼️ Image", "video": "🎬 Vidéo", "document": "📎 Document", "text": "📝 Texte"}
+        
+        sent_message = await update.message.reply_text(f"""✅ MESSAGE AJOUTÉ AVEC SUCCÈS !
+
+{message_type_text.get(message_type, "📝")} Votre message a été sauvegardé.
+📊 Total de messages personnalisés : {len(saved_messages)}
+
+🔄 Ce message peut maintenant être utilisé pour la diffusion.
+
+🔙 MENU PRINCIPAL :
+
+1️⃣ AJOUTER MESSAGE - Créer un nouveau message quotidien
+2️⃣ VOIR MESSAGES - Liste complète des messages sauvegardés  
+3️⃣ SUPPRIMER MESSAGE - Effacer un message spécifique
+4️⃣ SUPPRIMER TOUS - Vider tous les messages personnalisés
+5️⃣ DIFFUSER MAINTENANT - Envoyer un message immédiatement
+6️⃣ STATISTIQUES - Voir les stats du bot
+7️⃣ QUITTER - Fermer ce menu
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu
+
+📝 Tapez le numéro de votre choix (1 à 7) :""")
+        
+        secret_menus[user_id]["step"] = "main_menu"
+        secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+    
+    # Supprimer un message spécifique  
+    elif menu_state["step"] == "delete_one_message":
+        # Supprimer le message précédent du bot
+        if 'last_bot_message_id' in menu_state:
+            try:
+                await context.bot.delete_message(
+                    chat_id=user_id, 
+                    message_id=menu_state['last_bot_message_id']
+                )
+            except:
+                pass
+        
+        try:
+            choice = int(message_text)
+            saved_messages = load_saved_messages()
+            
+            if choice == 0:
+                sent_message = await update.message.reply_text("""❌ SUPPRESSION ANNULÉE
+
+🔙 Retour au menu principal :
+
+1️⃣ Ajouter message
+2️⃣ Voir messages  
+3️⃣ Supprimer message
+4️⃣ Supprimer tous
+5️⃣ Diffuser maintenant
+6️⃣ Statistiques
+7️⃣ Quitter
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu
+
+📝 Tapez votre choix :""")
+                secret_menus[user_id]["step"] = "main_menu"
+                secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+                
+            elif 1 <= choice <= len(saved_messages):
+                # Afficher le message qui va être supprimé pour confirmation
+                deleted_msg = saved_messages[choice - 1]
+                preview = deleted_msg['content'][:150] + "..." if len(deleted_msg['content']) > 150 else deleted_msg['content']
+                msg_type = f"[{deleted_msg['type'].upper()}] " if deleted_msg['type'] != 'text' else ""
+                
+                # Supprimer le message
+                saved_messages.pop(choice - 1)
+                save_messages(saved_messages)
+                
+                sent_message = await update.message.reply_text(f"""✅ MESSAGE SUPPRIMÉ AVEC SUCCÈS !
+
+🗑️ Message supprimé :
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{msg_type}{preview}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Messages personnalisés restants : {len(saved_messages)}
+
+🔙 Retour au menu principal :
+
+1️⃣ Ajouter message
+2️⃣ Voir messages restants
+3️⃣ Supprimer un autre message
+4️⃣ Supprimer tous les messages
+5️⃣ Diffuser maintenant
+6️⃣ Statistiques
+7️⃣ Quitter
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu
+
+📝 Tapez votre choix :""")
+                secret_menus[user_id]["step"] = "main_menu"
+                secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+                
+            else:
+                sent_message = await update.message.reply_text(f"""❌ NUMÉRO INVALIDE
+
+🔢 Veuillez choisir un numéro entre 1 et {len(saved_messages)}
+❌ Ou tapez 0 pour annuler et revenir au menu
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu
+
+📝 Votre choix :""")
+                secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+                
+        except ValueError:
+            sent_message = await update.message.reply_text("""❌ FORMAT INVALIDE
+
+🔢 Tapez uniquement un numéro (pas de texte)
+💡 Exemple : tapez 1 pour supprimer le message #1
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu
+
+📝 Votre choix :""")
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+    
+    # Supprimer TOUS les messages
+    elif menu_state["step"] == "delete_all_messages":
+        # Supprimer le message précédent du bot
+        if 'last_bot_message_id' in menu_state:
+            try:
+                await context.bot.delete_message(
+                    chat_id=user_id, 
+                    message_id=menu_state['last_bot_message_id']
+                )
+            except:
+                pass
+        
+        if message_text.upper() == "OUI":
+            saved_messages = load_saved_messages()
+            total_deleted = len(saved_messages)
+            save_messages([])  # Vider la liste
+            
+            sent_message = await update.message.reply_text(f"""✅ TOUS LES MESSAGES SUPPRIMÉS !
+
+🗑️ {total_deleted} messages personnalisés ont été supprimés.
+📊 Messages restants : 0
+🔄 Seuls les messages quotidiens par défaut restent actifs.
+
+🔙 Retour au menu principal :
+
+1️⃣ Ajouter un nouveau message
+2️⃣ Voir messages (vide maintenant)
+7️⃣ Retour menu principal
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu""")
+            secret_menus[user_id]["step"] = "main_menu"
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+            
+        elif message_text.upper() == "NON":
+            sent_message = await update.message.reply_text("""❌ SUPPRESSION ANNULÉE
+
+🛡️ Tous vos messages ont été conservés.
+🔙 Retour au menu principal.
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu""")
+            secret_menus[user_id]["step"] = "main_menu"
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+        else:
+            sent_message = await update.message.reply_text("""❓ Réponse invalide
+
+✅ Tapez OUI pour confirmer la suppression de TOUS les messages
+❌ Tapez NON pour annuler
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu""")
+            secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+    
+    # Diffusion immédiate
+    elif menu_state["step"] == "broadcast_now":
+        # Supprimer le message précédent du bot
+        if 'last_bot_message_id' in menu_state:
+            try:
+                await context.bot.delete_message(
+                    chat_id=user_id, 
+                    message_id=menu_state['last_bot_message_id']
+                )
+            except:
+                pass
+        
+        await update.message.reply_text("""🚀 **DIFFUSION EN COURS...**
+
+📤 Envoi de votre message à tous les utilisateurs...
+⏳ Veuillez patienter...""")
+        
+        # Effectuer la diffusion avec support média
+        result = await send_broadcast_message_with_media(update)
+        
+        sent_message = await update.message.reply_text(f"""✅ DIFFUSION TERMINÉE !
+
+📊 Résultats :
+✅ Messages envoyés : {result['sent_count']}
+❌ Échecs : {result['failed_count']}
+👥 Total utilisateurs : {result['total_users']}
+
+🔙 Retour au menu :
+
+1️⃣ Ajouter message
+2️⃣ Voir messages
+3️⃣ Supprimer message
+4️⃣ Supprimer tous
+5️⃣ Diffuser à nouveau
+6️⃣ Statistiques  
+7️⃣ Quitter
+🚪 **SORTIR** - Tapez SORTIR pour quitter le menu
+
+📝 Tapez votre choix :""")
+        
+        secret_menus[user_id]["step"] = "main_menu"
+        secret_menus[user_id]["last_bot_message_id"] = sent_message.message_id
+
+
+async def handle_broadcast_process(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère le processus de diffusion en plusieurs étapes"""
+    user_id = update.effective_user.id
+    message_text = update.message.text if update.message.text else ""
+
+    if user_id not in broadcast_states:
+        return
+
+    current_state = broadcast_states[user_id]
+
+    # Étape 1 : Réception du message à diffuser
+    if current_state["step"] == "waiting_message":
+        # Déterminer le type de contenu
+        if update.message.photo:
+            current_state["media_type"] = "photo"
+            current_state["media_file"] = update.message.photo[-1].file_id
+            current_state["message"] = update.message.caption or ""
+        elif update.message.video:
+            current_state["media_type"] = "video"
+            current_state["media_file"] = update.message.video.file_id
+            current_state["message"] = update.message.caption or ""
+        elif update.message.document:
+            current_state["media_type"] = "document"
+            current_state["media_file"] = update.message.document.file_id
+            current_state["message"] = update.message.caption or ""
+        else:
+            current_state["media_type"] = "text"
+            current_state["media_file"] = None
+            current_state["message"] = message_text
+
+        current_state["step"] = "waiting_confirmation"
+
+        # Afficher le preview
+        media_info = ""
+        if current_state["media_type"] != "text":
+            media_info = f"🎞️ **Type de média :** {current_state['media_type'].upper()}\n"
+
+        preview_message = f"""📢 **APERÇU DU MESSAGE À DIFFUSER**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{media_info}{current_state['message']}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **Informations de diffusion :**
+👑 Expéditeur : **SIHO ISAAC ROLAND**
+👥 Destinataires : Tous les utilisateurs inscrits
+📅 Date d'envoi : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}
+
+⚠️ **Étape 2/3 :** Voulez-vous vraiment envoyer ce message à tous vos utilisateurs ?
+
+✅ Tapez **OUI** pour confirmer l'envoi
+❌ Tapez **NON** pour annuler la diffusion"""
+
+        await update.message.reply_text(preview_message)
+
+    # Étape 2 : Traitement de la confirmation
+    elif current_state["step"] == "waiting_confirmation":
+        if message_text.upper() == "OUI":
+            # Lancer la diffusion
+            current_state["step"] = "sending"
+
+            await update.message.reply_text("""🚀 **DIFFUSION EN COURS...**
+
+📤 Envoi du message à tous les utilisateurs...
+⏳ Veuillez patienter...""")
+
+            # Effectuer la diffusion
+            result = await send_broadcast_with_media(current_state)
+
+            # Afficher le résultat
+            success_message = f"""✅ **DIFFUSION TERMINÉE !**
+
+📊 **Rapport d'envoi :**
+✅ Messages envoyés : **{result['sent_count']}**
+❌ Échecs d'envoi : **{result['failed_count']}**
+👥 Total utilisateurs : **{result['total_users']}**
+📅 Date/Heure : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}
+
+🎯 Votre message a été diffusé avec succès !"""
+
+            await update.message.reply_text(success_message)
+
+        else:
+            # Annuler la diffusion
+            await update.message.reply_text("""❌ **DIFFUSION ANNULÉE**
+
+🚫 La diffusion de message a été annulée.
+📝 Votre message n'a pas été envoyé.
+
+💡 Utilisez à nouveau `/broadcast` si vous souhaitez diffuser un message.""")
+
+        # Nettoyer l'état
+        del broadcast_states[user_id]
+
+
+async def send_broadcast_message_with_media(update):
+    """Envoie un message de diffusion avec support média depuis un update"""
+    users_data = load_users()
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    sent_count = 0
+    failed_count = 0
+    total_users = len(users_data)
+
+    # Déterminer le type de contenu
+    message_text = ""
+    media_type = "text"
+    media_file_id = None
+
+    if update.message.photo:
+        media_type = "photo"
+        media_file_id = update.message.photo[-1].file_id
+        message_text = update.message.caption or ""
+    elif update.message.video:
+        media_type = "video"
+        media_file_id = update.message.video.file_id
+        message_text = update.message.caption or ""
+    elif update.message.document:
+        media_type = "document"
+        media_file_id = update.message.document.file_id
+        message_text = update.message.caption or ""
+    else:
+        message_text = update.message.text or ""
+
+    # Ajouter l'en-tête ZACK PCS au message
+    formatted_message = f"""📢 **MESSAGE OFFICIEL ZACK PCS**
+
+{message_text}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 Code promo : **{PROMO_CODE}**
+📱 Support : {CONTACT_LINK}
+📚 Infos : {INFO_LINK}"""
+
+    # Envoyer à tous les utilisateurs
+    for user_id, user_data in users_data.items():
+        try:
+            if media_type == "photo":
+                await app.bot.send_photo(
+                    chat_id=int(user_id), 
+                    photo=media_file_id, 
+                    caption=formatted_message
+                )
+            elif media_type == "video":
+                await app.bot.send_video(
+                    chat_id=int(user_id), 
+                    video=media_file_id, 
+                    caption=formatted_message
+                )
+            elif media_type == "document":
+                await app.bot.send_document(
+                    chat_id=int(user_id), 
+                    document=media_file_id, 
+                    caption=formatted_message
+                )
+            else:
+                await app.bot.send_message(
+                    chat_id=int(user_id), 
+                    text=formatted_message
+                )
+            
+            sent_count += 1
+            users_data[user_id]["last_message"] = datetime.now().isoformat()
+            await asyncio.sleep(0.5)
+
+        except Exception as e:
+            print(f"Erreur envoi diffusion à {user_id}: {e}")
+            failed_count += 1
+
+    save_users(users_data)
+    return {
+        "sent_count": sent_count,
+        "failed_count": failed_count,
+        "total_users": total_users
+    }
+
+
+async def send_broadcast_with_media(broadcast_state):
+    """Envoie un message de diffusion avec support média depuis un état de diffusion"""
+    users_data = load_users()
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    sent_count = 0
+    failed_count = 0
+    total_users = len(users_data)
+
+    # Ajouter l'en-tête ZACK PCS au message
+    formatted_message = f"""📢 **MESSAGE OFFICIEL ZACK PCS**
+
+{broadcast_state['message']}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 Code promo : **{PROMO_CODE}**
+📱 Support : {CONTACT_LINK}
+📚 Infos : {INFO_LINK}"""
+
+    # Envoyer à tous les utilisateurs
+    for user_id, user_data in users_data.items():
+        try:
+            if broadcast_state['media_type'] == "photo":
+                await app.bot.send_photo(
+                    chat_id=int(user_id), 
+                    photo=broadcast_state['media_file'], 
+                    caption=formatted_message
+                )
+            elif broadcast_state['media_type'] == "video":
+                await app.bot.send_video(
+                    chat_id=int(user_id), 
+                    video=broadcast_state['media_file'], 
+                    caption=formatted_message
+                )
+            elif broadcast_state['media_type'] == "document":
+                await app.bot.send_document(
+                    chat_id=int(user_id), 
+                    document=broadcast_state['media_file'], 
+                    caption=formatted_message
+                )
+            else:
+                await app.bot.send_message(
+                    chat_id=int(user_id), 
+                    text=formatted_message
+                )
+            
+            sent_count += 1
+            users_data[user_id]["last_message"] = datetime.now().isoformat()
+            await asyncio.sleep(0.5)
+
+        except Exception as e:
+            print(f"Erreur envoi diffusion à {user_id}: {e}")
+            failed_count += 1
+
+    save_users(users_data)
+    return {
+        "sent_count": sent_count,
+        "failed_count": failed_count,
+        "total_users": total_users
+    }
+
+
+async def send_broadcast_message(broadcast_message):
+    """Envoie un message de diffusion texte simple (fonction legacy)"""
+    users_data = load_users()
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    sent_count = 0
+    failed_count = 0
+    total_users = len(users_data)
+
+    formatted_message = f"""📢 **MESSAGE OFFICIEL ZACK PCS**
+
+{broadcast_message}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 Code promo : **{PROMO_CODE}**
+📱 Support : {CONTACT_LINK}
+📚 Infos : {INFO_LINK}"""
+
+    for user_id, user_data in users_data.items():
+        try:
+            await app.bot.send_message(chat_id=int(user_id), text=formatted_message)
+            sent_count += 1
+            users_data[user_id]["last_message"] = datetime.now().isoformat()
+            await asyncio.sleep(0.5)
+        except Exception as e:
+            print(f"Erreur envoi diffusion à {user_id}: {e}")
+            failed_count += 1
+
+    save_users(users_data)
+    return {
+        "sent_count": sent_count,
+        "failed_count": failed_count,
+        "total_users": total_users
+    }
+
+
+def schedule_daily_messages():
+    """Programme les messages quotidiens"""
+    def run_broadcast():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(broadcast_daily_messages())
+        except Exception as e:
+            print(f"Erreur lors de l'envoi des messages quotidiens: {e}")
+        finally:
+            loop.close()
+
+    schedule.every().day.at("09:00").do(run_broadcast)
+    schedule.every().day.at("18:00").do(run_broadcast)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
+
+
+if __name__ == "__main__":
+    print("🚀 Démarrage du bot ZACK PCS...")
+
+    # Création de l'application
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    # Ajout des handlers pour texte, images et vidéos
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("test", send_test_message))
+    app.add_handler(CommandHandler("broadcast", broadcast_command))
+    
+    # Handler pour tous les types de messages (texte, photo, vidéo, document)
+    app.add_handler(MessageHandler(
+        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Document.ALL) & ~filters.COMMAND, 
+        handle_message
+    ))
+
+    # Démarrer le scheduler dans un thread séparé
+    scheduler_thread = threading.Thread(target=schedule_daily_messages, daemon=True)
+    scheduler_thread.start()
+
+    print("🤖 Bot ZACK PCS démarré ! En attente de nouveaux utilisateurs...")
+    print(f"📧 Messages automatiques programmés à 9h et 18h")
+    print(f"🔑 Code promo actif : {PROMO_CODE}")
+    print("🖼️ Support complet : Texte, Images, Vidéos !")
+
+    # Démarrage du bot
+    app.run_polling()
+
