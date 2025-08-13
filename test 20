@@ -1,0 +1,681 @@
+
+import json
+import os
+import asyncio
+from datetime import datetime
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
+
+# Configuration
+TOKEN = os.getenv("BOT_TOKEN", "7993065501:AAFUcGkVqk6W2pGYYYrCUhP_fhyzQG7d9qo")
+CANAL_LINK = "https://t.me/+6ya0mglfi4A2NGZk"
+ADMIN_CODE = "SIHO ISAAC ROLAND 840106"
+ADMIN_CHAT_ID = None
+
+# Fichiers de données
+USERS_FILE = "users.json"
+ADMINS_FILE = "admins.json"
+BLOCKED_USERS_FILE = "blocked_users.json"
+MESSAGES_FILE = "messages.json"
+
+# États des utilisateurs
+user_states = {}
+
+def load_json(file_path, default=None):
+    """Charge un fichier JSON"""
+    if default is None:
+        default = {}
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except:
+        pass
+    return default
+
+def save_json(file_path, data):
+    """Sauvegarde un fichier JSON"""
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def load_users():
+    return load_json(USERS_FILE, {})
+
+def save_users(data):
+    save_json(USERS_FILE, data)
+
+def load_admins():
+    return load_json(ADMINS_FILE, {})
+
+def save_admins(data):
+    save_json(ADMINS_FILE, data)
+
+def load_blocked_users():
+    return load_json(BLOCKED_USERS_FILE, {})
+
+def save_blocked_users(data):
+    save_json(BLOCKED_USERS_FILE, data)
+
+def load_messages():
+    default_messages = {
+        "welcome": "Bonjour {nom} ! 🎉\n\nBienvenue dans notre communauté !\n\n🔗 Rejoins notre canal officiel : {canal}\n\n📞 Pour toute question, je suis là pour t'aider !",
+        "auto_hours": ["09:00", "18:00"]
+    }
+    return load_json(MESSAGES_FILE, default_messages)
+
+def save_messages(data):
+    save_json(MESSAGES_FILE, data)
+
+def is_admin(user_id):
+    """Vérifie si un utilisateur est admin"""
+    global ADMIN_CHAT_ID
+    if ADMIN_CHAT_ID and user_id == ADMIN_CHAT_ID:
+        return True
+    admins = load_admins()
+    return str(user_id) in admins
+
+def is_blocked(user_id):
+    """Vérifie si un utilisateur est bloqué"""
+    blocked = load_blocked_users()
+    return str(user_id) in blocked
+
+def clear_user_state(user_id):
+    """Nettoie l'état d'un utilisateur"""
+    if user_id in user_states:
+        del user_states[user_id]
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /start - Message de bienvenue personnalisé"""
+    user = update.effective_user
+    user_id = str(user.id)
+    user_name = user.first_name or user.username or "ami"
+    
+    # Nettoyer l'état au démarrage
+    clear_user_state(user.id)
+    
+    # Vérifier si bloqué
+    if is_blocked(user_id):
+        await update.message.reply_text("❌ Votre accès a été suspendu.")
+        return
+    
+    # Sauvegarder l'utilisateur
+    users = load_users()
+    users[user_id] = {
+        "name": user_name,
+        "username": user.username,
+        "registered_date": datetime.now().isoformat(),
+        "last_activity": datetime.now().isoformat(),
+        "message_count": users.get(user_id, {}).get("message_count", 0)
+    }
+    save_users(users)
+    
+    # Message de bienvenue personnalisé
+    messages = load_messages()
+    welcome_text = messages["welcome"].format(nom=user_name, canal=CANAL_LINK)
+    
+    await update.message.reply_text(welcome_text)
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestion des messages texte"""
+    user_id = update.effective_user.id
+    message_text = update.message.text.strip()
+    user_name = update.effective_user.first_name or "utilisateur"
+    
+    # Vérifier si bloqué (sauf pour l'admin)
+    if not is_admin(user_id) and is_blocked(str(user_id)):
+        await update.message.reply_text("❌ Votre accès a été suspendu.")
+        return
+    
+    # Code admin principal
+    if message_text == ADMIN_CODE:
+        await handle_admin_login(update)
+        return
+    
+    # Commande /sortir - fonctionne partout
+    if message_text == "/sortir":
+        clear_user_state(user_id)
+        await update.message.reply_text("✅ Retour au menu principal.")
+        return
+    
+    # Gestion des états admin - SEULEMENT pour les admins
+    if user_id in user_states and is_admin(user_id):
+        await handle_admin_states(update, context)
+        return
+    
+    # Si un non-admin essaie d'accéder aux fonctions admin
+    if user_id in user_states and not is_admin(user_id):
+        clear_user_state(user_id)
+        await update.message.reply_text("❌ Accès non autorisé.")
+        return
+    
+    # Message normal d'utilisateur
+    users = load_users()
+    if str(user_id) in users:
+        users[str(user_id)]["message_count"] += 1
+        users[str(user_id)]["last_activity"] = datetime.now().isoformat()
+        save_users(users)
+    
+    await update.message.reply_text(
+        f"📝 Merci {user_name} ! Votre message a été reçu.\n\n"
+        f"🔗 Rejoignez notre canal : {CANAL_LINK}\n\n"
+        f"🔚 Tapez /sortir à tout moment"
+    )
+
+async def handle_admin_login(update: Update):
+    """Gestion de la connexion admin"""
+    global ADMIN_CHAT_ID
+    user_id = update.effective_user.id
+    ADMIN_CHAT_ID = user_id
+    
+    # Nettoyer l'état
+    clear_user_state(user_id)
+    
+    # Statistiques
+    users = load_users()
+    blocked = load_blocked_users()
+    total_users = len(users)
+    blocked_count = len(blocked)
+    active_users = total_users - blocked_count
+    
+    # Menu admin principal
+    keyboard = [
+        [InlineKeyboardButton("📊 Statistiques détaillées", callback_data="stats_detail")],
+        [InlineKeyboardButton("🔍 Rechercher utilisateur", callback_data="search_user")],
+        [InlineKeyboardButton("📝 Modifier message bienvenue", callback_data="modify_welcome")],
+        [InlineKeyboardButton("⏰ Modifier heures d'envoi", callback_data="modify_hours")],
+        [InlineKeyboardButton("👤 Ajouter administrateur", callback_data="add_admin")],
+        [InlineKeyboardButton("🗑️ Supprimer administrateur", callback_data="del_admin")],
+        [InlineKeyboardButton("🚫 Bloquer utilisateur", callback_data="block_user")],
+        [InlineKeyboardButton("✅ Débloquer utilisateur", callback_data="unblock_user")],
+        [InlineKeyboardButton("🔚 Quitter", callback_data="exit_admin")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    admin_message = f"""🔐 PANNEAU ADMINISTRATEUR
+👤 SIHO ISAAC ROLAND - Accès autorisé
+🕐 Connexion : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}
+
+📊 STATISTIQUES RAPIDES
+👥 Utilisateurs totaux : {total_users}
+✅ Utilisateurs actifs : {active_users}
+❌ Utilisateurs bloqués : {blocked_count}
+
+🔧 Sélectionnez une action :"""
+    
+    await update.message.reply_text(admin_message, reply_markup=reply_markup)
+
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestion des boutons inline"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    data = query.data
+    
+    # Vérification admin obligatoire
+    if not is_admin(user_id):
+        await query.edit_message_text("❌ Accès non autorisé.")
+        return
+    
+    if data == "exit_admin":
+        clear_user_state(user_id)
+        await query.edit_message_text("✅ Sortie du mode administrateur\n\nVous êtes maintenant en mode utilisateur normal.")
+        return
+    
+    elif data == "back_to_menu":
+        await handle_admin_login_callback(query)
+        return
+    
+    elif data == "stats_detail":
+        await show_detailed_stats(query)
+    
+    elif data == "search_user":
+        user_states[user_id] = {"action": "search_user"}
+        await query.edit_message_text(
+            "🔍 RECHERCHE D'UTILISATEUR\n\n"
+            "🔸 Tapez le nom ou @pseudo de l'utilisateur\n"
+            "🔸 Ou tapez 'liste' pour voir tous les utilisateurs\n\n"
+            "🔚 /sortir pour annuler"
+        )
+    
+    elif data == "modify_welcome":
+        user_states[user_id] = {"action": "modify_welcome"}
+        messages = load_messages()
+        current_welcome = messages["welcome"]
+        await query.edit_message_text(
+            f"📝 MODIFICATION DU MESSAGE DE BIENVENUE\n\n"
+            f"📋 Message actuel :\n{current_welcome}\n\n"
+            f"📝 Variables disponibles :\n"
+            f"• {{nom}} - Nom de l'utilisateur\n"
+            f"• {{canal}} - Lien du canal\n\n"
+            f"📝 Tapez votre nouveau message :\n\n"
+            f"🔚 /sortir pour annuler"
+        )
+    
+    elif data == "block_user":
+        user_states[user_id] = {"action": "block_user"}
+        await query.edit_message_text(
+            "🚫 BLOQUER UN UTILISATEUR\n\n"
+            "🔍 Tapez le nom, @pseudo ou ID de l'utilisateur à bloquer :\n\n"
+            "🔚 /sortir pour annuler"
+        )
+    
+    elif data == "unblock_user":
+        user_states[user_id] = {"action": "unblock_user"}
+        await query.edit_message_text(
+            "✅ DÉBLOQUER UN UTILISATEUR\n\n"
+            "🔍 Tapez le nom, @pseudo ou ID de l'utilisateur à débloquer :\n\n"
+            "🔚 /sortir pour annuler"
+        )
+
+async def handle_admin_login_callback(query):
+    """Retour au menu admin principal"""
+    user_id = query.from_user.id
+    clear_user_state(user_id)
+    
+    # Statistiques
+    users = load_users()
+    blocked = load_blocked_users()
+    total_users = len(users)
+    blocked_count = len(blocked)
+    active_users = total_users - blocked_count
+    
+    # Menu admin principal
+    keyboard = [
+        [InlineKeyboardButton("📊 Statistiques détaillées", callback_data="stats_detail")],
+        [InlineKeyboardButton("🔍 Rechercher utilisateur", callback_data="search_user")],
+        [InlineKeyboardButton("📝 Modifier message bienvenue", callback_data="modify_welcome")],
+        [InlineKeyboardButton("⏰ Modifier heures d'envoi", callback_data="modify_hours")],
+        [InlineKeyboardButton("👤 Ajouter administrateur", callback_data="add_admin")],
+        [InlineKeyboardButton("🗑️ Supprimer administrateur", callback_data="del_admin")],
+        [InlineKeyboardButton("🚫 Bloquer utilisateur", callback_data="block_user")],
+        [InlineKeyboardButton("✅ Débloquer utilisateur", callback_data="unblock_user")],
+        [InlineKeyboardButton("🔚 Quitter", callback_data="exit_admin")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    admin_message = f"""🔐 PANNEAU ADMINISTRATEUR
+👤 SIHO ISAAC ROLAND - Accès autorisé
+🕐 Connexion : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}
+
+📊 STATISTIQUES RAPIDES
+👥 Utilisateurs totaux : {total_users}
+✅ Utilisateurs actifs : {active_users}
+❌ Utilisateurs bloqués : {blocked_count}
+
+🔧 Sélectionnez une action :"""
+    
+    await query.edit_message_text(admin_message, reply_markup=reply_markup)
+
+async def show_detailed_stats(query):
+    """Affiche les statistiques détaillées"""
+    users = load_users()
+    blocked = load_blocked_users()
+    admins = load_admins()
+    
+    total_users = len(users)
+    blocked_count = len(blocked)
+    admin_count = len(admins) + 1  # +1 pour l'admin principal
+    
+    # Utilisateurs actifs aujourd'hui
+    today = datetime.now().date()
+    active_today = 0
+    for user_data in users.values():
+        try:
+            last_activity = datetime.fromisoformat(user_data.get("last_activity", "2000-01-01"))
+            if last_activity.date() == today:
+                active_today += 1
+        except:
+            pass
+    
+    # Top 3 utilisateurs les plus actifs
+    top_users = sorted(users.items(), key=lambda x: x[1].get("message_count", 0), reverse=True)[:3]
+    top_text = ""
+    for i, (uid, user_data) in enumerate(top_users, 1):
+        name = user_data.get("name", "Inconnu")
+        count = user_data.get("message_count", 0)
+        top_text += f"{i}. {name} - {count} messages\n"
+    
+    keyboard = [[InlineKeyboardButton("🔙 Retour au menu", callback_data="back_to_menu")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    stats_message = f"""📊 STATISTIQUES DÉTAILLÉES
+
+👥 Utilisateurs
+├── Total : {total_users}
+├── Actifs aujourd'hui : {active_today}
+├── Bloqués : {blocked_count}
+└── Administrateurs : {admin_count}
+
+🏆 TOP UTILISATEURS ACTIFS
+{top_text if top_text else "Aucune activité"}
+
+📅 Rapport généré le : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}"""
+    
+    await query.edit_message_text(stats_message, reply_markup=reply_markup)
+
+async def handle_admin_states(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestion des états administrateur"""
+    user_id = update.effective_user.id
+    message_text = update.message.text.strip()
+    
+    if user_id not in user_states:
+        return
+    
+    state = user_states[user_id]
+    action = state.get("action")
+    
+    if action == "modify_welcome":
+        await handle_welcome_modification(update, message_text)
+    
+    elif action == "search_user":
+        await handle_user_search(update, message_text)
+    
+    elif action == "block_user":
+        await handle_user_blocking(update, message_text)
+    
+    elif action == "unblock_user":
+        await handle_user_unblocking(update, message_text)
+    
+    elif action == "view_user_details":
+        await handle_user_details_view(update, message_text)
+
+async def handle_welcome_modification(update: Update, new_message: str):
+    """Modifie le message de bienvenue"""
+    messages = load_messages()
+    messages["welcome"] = new_message
+    save_messages(messages)
+    
+    user_id = update.effective_user.id
+    clear_user_state(user_id)
+    
+    preview = new_message.format(nom="[Nom]", canal=CANAL_LINK)
+    
+    await update.message.reply_text(
+        f"✅ MESSAGE DE BIENVENUE MODIFIÉ\n\n"
+        f"📝 Aperçu :\n{preview}\n\n"
+        f"📅 Modifié le : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}\n\n"
+        f"🔚 /sortir pour quitter"
+    )
+
+async def handle_user_search(update: Update, search_term: str):
+    """Gère la recherche d'utilisateurs"""
+    users = load_users()
+    
+    if search_term.lower() == "liste":
+        await show_users_list(update, users)
+        return
+    
+    # Vérifier si c'est un numéro (sélection d'utilisateur)
+    try:
+        user_number = int(search_term)
+        if user_number > 0:
+            await handle_user_selection(update, user_number)
+            return
+    except ValueError:
+        pass
+    
+    # Rechercher par nom, pseudo ou ID
+    found_users = []
+    for uid, user_data in users.items():
+        name = user_data.get("name", "").lower()
+        username = user_data.get("username", "").lower() if user_data.get("username") else ""
+        
+        if (search_term.lower() in name or 
+            search_term.lower() in username or
+            search_term == uid):
+            found_users.append((uid, user_data))
+    
+    if not found_users:
+        await update.message.reply_text(
+            f"❌ AUCUN UTILISATEUR TROUVÉ\n\n"
+            f"🔍 Aucun résultat pour : \"{search_term}\"\n\n"
+            f"🔄 Tapez un autre terme\n"
+            f"📄 Ou tapez 'liste' pour voir tous\n\n"
+            f"🔚 /sortir pour quitter"
+        )
+        return
+    
+    # Afficher les résultats numérotés
+    result_text = f"🔍 RÉSULTATS POUR : {search_term}\n\n"
+    
+    for i, (uid, user_data) in enumerate(found_users[:10], 1):
+        name = user_data.get("name", "Inconnu")
+        username = user_data.get("username", "N/A")
+        status = "🚫 Bloqué" if is_blocked(uid) else "✅ Actif"
+        result_text += f"{i}. {name} (@{username})\n    ID: {uid} | {status}\n\n"
+    
+    result_text += "📝 Tapez le numéro pour voir les détails\n\n🔚 /sortir pour quitter"
+    
+    # Sauvegarder les résultats dans l'état
+    user_states[update.effective_user.id]["found_users"] = found_users
+    user_states[update.effective_user.id]["action"] = "view_user_details"
+    
+    await update.message.reply_text(result_text)
+
+async def handle_user_selection(update: Update, user_number: int):
+    """Gère la sélection d'un utilisateur par numéro"""
+    user_id = update.effective_user.id
+    
+    if user_id not in user_states or "found_users" not in user_states[user_id]:
+        await update.message.reply_text(
+            "❌ ERREUR\n\nAucune liste d'utilisateurs disponible.\n\n🔚 /sortir pour quitter"
+        )
+        return
+    
+    found_users = user_states[user_id]["found_users"]
+    
+    if user_number < 1 or user_number > len(found_users):
+        await update.message.reply_text(
+            f"❌ NUMÉRO INVALIDE\n\nChoisissez un numéro entre 1 et {len(found_users)}\n\n🔚 /sortir pour quitter"
+        )
+        return
+    
+    # Afficher les détails de l'utilisateur sélectionné
+    uid, user_data = found_users[user_number - 1]
+    await show_user_details(update, uid, user_data)
+
+async def handle_user_details_view(update: Update, message_text: str):
+    """Gère la visualisation des détails utilisateur"""
+    try:
+        user_number = int(message_text)
+        await handle_user_selection(update, user_number)
+    except ValueError:
+        await update.message.reply_text(
+            "❌ SAISIE INVALIDE\n\nTapez le numéro de l'utilisateur à consulter\n\n🔚 /sortir pour quitter"
+        )
+
+async def show_user_details(update: Update, uid: str, user_data: dict):
+    """Affiche les détails d'un utilisateur"""
+    name = user_data.get("name", "Inconnu")
+    username = user_data.get("username", "N/A")
+    registered = user_data.get("registered_date", "N/A")
+    last_activity = user_data.get("last_activity", "N/A")
+    message_count = user_data.get("message_count", 0)
+    
+    try:
+        reg_date = datetime.fromisoformat(registered).strftime('%d/%m/%Y à %H:%M')
+    except:
+        reg_date = "Date inconnue"
+    
+    try:
+        last_act = datetime.fromisoformat(last_activity).strftime('%d/%m/%Y à %H:%M')
+    except:
+        last_act = "Activité inconnue"
+    
+    status = "🚫 BLOQUÉ" if is_blocked(uid) else "✅ ACTIF"
+    
+    details_text = f"""👤 DÉTAILS UTILISATEUR
+
+🔹 Nom : {name}
+🔹 Username : @{username}
+🔹 ID Telegram : {uid}
+🔹 Statut : {status}
+🔹 Inscrit le : {reg_date}
+🔹 Dernière activité : {last_act}
+🔹 Messages envoyés : {message_count}
+
+🔚 /sortir pour retourner au menu"""
+    
+    clear_user_state(update.effective_user.id)
+    await update.message.reply_text(details_text)
+
+async def show_users_list(update: Update, users: dict):
+    """Affiche la liste complète des utilisateurs"""
+    if not users:
+        await update.message.reply_text(
+            "📭 AUCUN UTILISATEUR ENREGISTRÉ\n\n🔚 /sortir pour quitter"
+        )
+        return
+    
+    users_text = "👥 LISTE DES UTILISATEURS\n\n"
+    
+    users_list = list(users.items())
+    for i, (uid, user_data) in enumerate(users_list[:20], 1):
+        name = user_data.get("name", "Inconnu")
+        status = "🚫" if is_blocked(uid) else "✅"
+        users_text += f"{i}. {status} {name}\n"
+    
+    if len(users) > 20:
+        users_text += f"\n... et {len(users) - 20} autres utilisateurs"
+    
+    users_text += f"\n\n📊 Total : {len(users)} utilisateurs\n\n"
+    users_text += "📝 Tapez le numéro pour voir les détails\n\n🔚 /sortir pour quitter"
+    
+    # Sauvegarder la liste dans l'état
+    user_states[update.effective_user.id]["found_users"] = users_list
+    user_states[update.effective_user.id]["action"] = "view_user_details"
+    
+    await update.message.reply_text(users_text)
+
+async def handle_user_blocking(update: Update, search_term: str):
+    """Gère le blocage d'utilisateurs"""
+    users = load_users()
+    blocked = load_blocked_users()
+    
+    # Rechercher l'utilisateur
+    found_user = None
+    for uid, user_data in users.items():
+        name = user_data.get("name", "").lower()
+        username = user_data.get("username", "").lower() if user_data.get("username") else ""
+        
+        if (search_term.lower() in name or 
+            search_term.lower() in username or
+            search_term == uid):
+            found_user = (uid, user_data)
+            break
+    
+    if not found_user:
+        await update.message.reply_text(
+            f"❌ UTILISATEUR NON TROUVÉ\n\n"
+            f"🔍 Aucun résultat pour : \"{search_term}\"\n\n"
+            f"🔄 Tapez un autre terme\n\n"
+            f"🔚 /sortir pour annuler"
+        )
+        return
+    
+    uid, user_data = found_user
+    
+    if uid in blocked:
+        await update.message.reply_text(
+            f"⚠️ UTILISATEUR DÉJÀ BLOQUÉ\n\n"
+            f"👤 {user_data.get('name', 'Inconnu')} est déjà bloqué.\n\n"
+            f"🔚 /sortir pour quitter"
+        )
+        return
+    
+    # Bloquer l'utilisateur
+    blocked[uid] = {
+        "blocked_date": datetime.now().isoformat(),
+        "blocked_by": update.effective_user.id,
+        "name": user_data.get("name", "Inconnu")
+    }
+    save_blocked_users(blocked)
+    
+    # Nettoyer l'état
+    clear_user_state(update.effective_user.id)
+    
+    await update.message.reply_text(
+        f"🚫 UTILISATEUR BLOQUÉ AVEC SUCCÈS\n\n"
+        f"👤 {user_data.get('name', 'Inconnu')} a été bloqué.\n"
+        f"🕐 Date : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}\n\n"
+        f"✅ L'utilisateur ne pourra plus utiliser le bot.\n\n"
+        f"🔚 /sortir pour quitter"
+    )
+
+async def handle_user_unblocking(update: Update, search_term: str):
+    """Gère le déblocage d'utilisateurs"""
+    blocked = load_blocked_users()
+    
+    if not blocked:
+        await update.message.reply_text(
+            "ℹ️ AUCUN UTILISATEUR BLOQUÉ\n\n"
+            "Il n'y a actuellement aucun utilisateur bloqué.\n\n"
+            "🔚 /sortir pour quitter"
+        )
+        clear_user_state(update.effective_user.id)
+        return
+    
+    # Rechercher l'utilisateur bloqué
+    found_blocked = None
+    for uid, blocked_data in blocked.items():
+        name = blocked_data.get("name", "").lower()
+        
+        if (search_term.lower() in name or search_term == uid):
+            found_blocked = (uid, blocked_data)
+            break
+    
+    if not found_blocked:
+        await update.message.reply_text(
+            f"❌ UTILISATEUR BLOQUÉ NON TROUVÉ\n\n"
+            f"🔍 Aucun résultat pour : \"{search_term}\"\n\n"
+            f"🔄 Tapez un autre terme\n\n"
+            f"🔚 /sortir pour annuler"
+        )
+        return
+    
+    uid, blocked_data = found_blocked
+    
+    # Débloquer l'utilisateur
+    del blocked[uid]
+    save_blocked_users(blocked)
+    
+    # Nettoyer l'état
+    clear_user_state(update.effective_user.id)
+    
+    await update.message.reply_text(
+        f"✅ UTILISATEUR DÉBLOQUÉ AVEC SUCCÈS\n\n"
+        f"👤 {blocked_data.get('name', 'Inconnu')} a été débloqué.\n"
+        f"🕐 Date : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}\n\n"
+        f"✅ L'utilisateur peut maintenant utiliser le bot.\n\n"
+        f"🔚 /sortir pour quitter"
+    )
+
+def main():
+    """Fonction principale"""
+    print("🚀 Démarrage du Bot Administrateur Avancé...")
+    
+    # Créer l'application
+    app = Application.builder().token(TOKEN).build()
+    
+    # Ajouter les handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print(f"✅ Bot démarré avec le canal : {CANAL_LINK}")
+    print(f"🔐 Code admin : {ADMIN_CODE}")
+    print("🔧 Fonctionnalités disponibles :")
+    print("   - Message de bienvenue personnalisé")
+    print("   - Gestion complète des utilisateurs")
+    print("   - Interface admin avec boutons")
+    print("   - Recherche d'utilisateurs")
+    print("   - Système de blocage/déblocage")
+    print("   - Statistiques détaillées")
+    print("   - Accès admin sécurisé")
+    
+    # Démarrer le bot
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
