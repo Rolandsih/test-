@@ -1,1 +1,716 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Prédiction Lucky Jet - Signal Unique</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        html, body {
+            margin: 0; padding: 0; width: 100vw; min-height: 100vh;
+            background: radial-gradient(ellipse at 50% 20%, #162447 60%, #101828 100%);
+            color: #eaf6fb; font-family: 'Segoe UI', Arial, sans-serif; overflow-x: hidden;
+        }
+        body { max-width: 100vw; }
+        .main-content {
+            min-height: 100vh; width: 100vw;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+            padding-top: 10px; box-sizing: border-box;
+        }
+        .prediction-box {
+            background: linear-gradient(135deg, #162447 60%, #1a1b3a 100%);
+            border-radius: 22px;
+            box-shadow: 0 4px 24px #00cfff38, 0 2px 24px #16244755;
+            padding: 30px 6vw 30px 6vw;
+            margin-top: 32px;
+            display: flex; flex-direction: column; align-items: stretch;
+            min-width: 0; width: 97vw; max-width: 430px;
+            border: 1.5px solid #2250a0;
+            position: relative;
+        }
+        .box-header {
+            display: flex; align-items: center; justify-content: flex-start;
+            margin-bottom: 18px;
+        }
+        #user-id-display {
+            color: #50dbff;
+            font-size: 1em;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            opacity: 0.90;
+            background: #233b6a50;
+            padding: 7px 14px 7px 13px;
+            border-radius: 13px;
+            border: 1px solid #50dbff40;
+            min-width: 62px;
+            margin-right: 14px;
+            letter-spacing: 0.03em;
+            box-shadow: 0 2px 10px #00cfff30;
+        }
+        .predict-title {
+            color: #fff; font-size: 1.23em; font-weight: bold; letter-spacing: 0.03em;
+            text-shadow: 0 2px 12px #00cfff40;
+        }
+        /* Minuteur */
+        #timer-remaining {
+            display: none;
+            margin: 17px auto 2px auto;
+            font-size: 1.18em;
+            font-family: 'Fira Mono','Consolas',monospace;
+            color: #ffe15d;
+            background: #1e325585;
+            padding: 9px 18px;
+            border-radius: 18px;
+            text-align: center;
+            min-width: 130px;
+            box-shadow: 0 2px 10px #ffe15d20;
+            font-weight: bold;
+            letter-spacing: 0.04em;
+        }
+        /* Barre de chargement */
+        .progress-bar-container {
+            width: 100%; background: #15203a; border-radius: 12px; height: 17px;
+            margin-bottom: 16px; box-shadow: 0 1px 9px #16244790;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar {
+            height: 100%; width: 0%; background: linear-gradient(90deg, #0099ff 55%, #50dbff 100%);
+            border-radius: 12px 0 0 12px;
+            transition: width 0.33s cubic-bezier(.44,1.6,.67,1);
+            box-shadow: 0 2px 14px #0099ff33 inset;
+        }
+        .progress-label {
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+            color: #fff; font-size: 1em; font-weight: bold; opacity: 0.92; text-shadow: 0 2px 8px #162447;
+            pointer-events: none;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            letter-spacing: 0.03em;
+        }
 
+        /* --- CODE PROMO ENERGY EFFECT --- */
+        .promo-energy-wrapper {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 28px auto 0 auto;
+            min-width: 170px;
+            max-width: 320px;
+            height: 62px;
+            z-index: 4;
+        }
+        .promo-energy-glow {
+            position: absolute;
+            left: 50%; top: 50%;
+            transform: translate(-50%,-50%);
+            width: 220px;
+            height: 52px;
+            border-radius: 32px;
+            pointer-events: none;
+            z-index: 1;
+            background: radial-gradient(circle, #34d6ffcc 0%, #0099ff88 60%, transparent 90%);
+            box-shadow:
+                0 0 38px 11px #00eaff99,
+                0 0 80px 22px #34d6ffaa,
+                0 0 0 8px #0099ff44 inset;
+            animation: energyPromoPulse 2.3s infinite alternate;
+            opacity: 0.93;
+            filter: blur(0.5px);
+        }
+        @keyframes energyPromoPulse {
+            0% {
+                opacity: 1;
+                filter: blur(0.5px);
+                box-shadow:
+                    0 0 38px 11px #00eaff99,
+                    0 0 80px 22px #34d6ffaa,
+                    0 0 0 8px #0099ff44 inset;
+            }
+            100% {
+                opacity: 0.7;
+                filter: blur(2px);
+                box-shadow:
+                    0 0 55px 20px #00eaffcc,
+                    0 0 120px 35px #34d6ffaa,
+                    0 0 0 15px #0099ff66 inset;
+            }
+        }
+        .promo-energy-text {
+            position: relative;
+            z-index: 2;
+            background: rgba(25,48,85,0.90);
+            color: #fff;
+            font-size: 1.25em;
+            font-weight: bold;
+            padding: 12px 34px;
+            border-radius: 20px;
+            box-shadow: 0 0 12px #00eaff66 inset, 0 0 12px #0099ff33;
+            text-align: center;
+            letter-spacing: 1.2px;
+            border: 2.5px solid #00eaffcc;
+            text-shadow: 0 2px 16px #4ae2ff99, 0 1px 8px #0099ff44;
+            backdrop-filter: blur(1.5px);
+        }
+        .promo-energy-text b {
+            color: #ffe15d;
+            font-size: 1.16em;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 11px #ffe15daa, 0 1px 8px #0099ff77;
+            font-weight: 900;
+            padding-left: 3px;
+        }
+        .promo-energy-text span {
+            color: #34d6ff;
+            font-weight: 700;
+            padding-right: 7px;
+            text-shadow: 0 1px 8px #34d6ff77;
+        }
+        @media (max-width: 600px) {
+            .prediction-box { padding: 20px 2vw 22px 2vw; border-radius: 11px; }
+            #user-id-display { font-size: 0.97em; padding: 5px 10px 5px 9px; border-radius: 9px; min-width: 48px; }
+            .predict-title { font-size: 1em;}
+            #timer-remaining { font-size: 1em; padding: 7px 6vw; border-radius: 12px;}
+            .predicted-cote { font-size: 1.12em; padding: 8px 2vw;}
+            .signal-btn { font-size: 1em; padding: 12px 0;}
+            .promo-energy-wrapper { height: 47px; max-width: 96vw; }
+            .promo-energy-glow { width: 96vw; min-width: 180px; max-width: 320px; height: 37px;}
+            .promo-energy-text { font-size: 1.05em; padding: 8px 7vw; border-radius: 16px; }
+        }
+        /* LOGS façon console, sans fenêtre */
+        #analysis-logs {
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 0.95em;
+            color: #00fff2;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+            opacity: 0.93;
+            user-select: none;
+            margin: 8px 0 6px 0;
+            min-height: 1.2em;
+            text-align: left;
+        }
+        .predicted-cote {
+            font-size: 2em; font-weight: bold; color: #0099ff; margin-top: 6px; text-align: center;
+            background: linear-gradient(90deg, #233b6a 60%, #162447 100%);
+            border-radius: 14px; padding: 16px 14px;
+            box-shadow: 0 2px 14px #00cfff33;
+            border: 1.2px solid #0099ff30;
+            width: 100%; max-width: 340px; margin: 0 auto;
+        }
+        .predicted-hour {
+            font-size: 1.08em; color: #50dbff; margin-top: 10px; font-weight: bold; text-shadow: 0 1px 6px #1b253e;
+            text-align: center;
+        }
+        .error-message {
+            color: #e74c3c; font-size: 1.1em; text-align: center; margin-top: 18px;
+        }
+        .info-message {
+            color: #0099ff; font-size: 1em; text-align: center; margin-top: 16px;
+        }
+        .signal-btn {
+            display: block;
+            margin: 23px auto 0 auto;
+            width: 90vw; max-width: 340px;
+            padding: 19px 0;
+            background: linear-gradient(90deg, #0099ff 60%, #50dbff 100%);
+            color: #fff; font-size: 1.18em; border: none; border-radius: 17px;
+            font-weight: bold; letter-spacing: 1px; cursor: pointer;
+            transition: background 0.20s, color 0.20s, box-shadow 0.25s;
+            box-shadow: 0 2px 22px #0099ff30, 0 0 8px #00cfff40;
+            z-index: 9999;
+            text-align: center;
+        }
+        .signal-btn:disabled, .signal-btn.disabled {
+            background: #233b6a !important;
+            color: #eee;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        @media (min-width: 900px) {
+            body, html, .main-content, .prediction-box, .signal-btn {
+                display: none !important;
+            }
+            body::before {
+                content: 'Disponible uniquement sur mobile 📱';
+                color: #0099ff; background: #181828;
+                display: block; text-align: center; font-size: 2.1em; padding: 15vh 12vw; width: 100vw; min-height: 100vh;
+            }
+        }
+        /* Popups inchangés sauf couleurs */
+        .popup-bg {
+            display: none; position: fixed; z-index: 100000; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.32); align-items: center; justify-content: center;
+        }
+        .popup {
+            background: #1a1b3a; padding: 30px 26px 22px 26px; border-radius: 18px; color: #fff;
+            box-shadow: 0 8px 32px #0099ff66; text-align: center; min-width: 250px; max-width: 90vw;
+            border: 2px solid #0099ff; animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(26px);} to { opacity: 1; transform: translateY(0);} }
+        .popup .fa-wifi-slash { color: #0099ff; font-size: 2em; margin-bottom: 9px;}
+        .popup-title { font-size: 1.13em; margin-bottom: 7px; font-weight: bold;}
+        .popup .close-btn {
+            margin-top: 16px; border: none; background: #0099ff; color: #fff; padding: 8px 24px; border-radius: 14px;
+            font-size: 1.01em; font-weight: 600; letter-spacing: .5px; cursor: pointer; transition: background 0.18s;
+        }
+        .popup .close-btn:hover { background: #2250a0; }
+        .popup input[type="text"] {
+            padding: 9px 12px; border-radius: 10px; border: 1.5px solid #0099ff; font-size: 1em; margin-top: 12px; margin-bottom: 10px; width: 75%;
+            background: #233b6a; color: #fff; outline: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connexion perdue popup -->
+    <div class="popup-bg" id="lost-connection-popup">
+        <div class="popup">
+            <i class="fa fa-wifi-slash"></i>
+            <div class="popup-title">Connexion perdue</div>
+            <div class="popup-text">
+                Vous avez perdu votre connexion internet.<br>
+                Veuillez vérifier votre réseau pour continuer à utiliser la prédiction.
+            </div>
+            <button class="close-btn" onclick="closePopup()">OK</button>
+        </div>
+    </div>
+    <!-- Popup ID joueur -->
+    <div class="popup-bg" id="id-popup">
+        <div class="popup">
+            <div class="popup-title">Entrez votre ID joueur Lucky Jet :</div>
+            <input type="text" id="id-input" maxlength="32" placeholder="ID joueur..." autocomplete="off"/>
+            <div id="id-error" style="color:#0099ff;font-size:0.99em;"></div>
+            <button class="close-btn" onclick="validateId()">Valider</button>
+        </div>
+    </div>
+    <!-- Popup synchronisation -->
+    <div class="popup-bg" id="sync-popup">
+        <div class="popup">
+            <div class="popup-title"><i class="fa fa-sync fa-spin"></i> Synchronisation...</div>
+            <div style="font-size:1em; color:#0099ff;">Veuillez patienter...</div>
+        </div>
+    </div>
+    <div class="main-content" id="main-content" style="display:none;">
+        <div class="prediction-box">
+            <div class="box-header">
+                <div id="user-id-display" style="display:none"></div>
+                <div class="predict-title">Signal Lucky Jet</div>
+            </div>
+            <div class="progress-bar-container" id="progress-bar-container" style="display:none;">
+                <div class="progress-bar" id="progress-bar"></div>
+                <div class="progress-label" id="progress-label">0%</div>
+            </div>
+
+            <!-- Code promo sous la barre de progression avec effet énergie -->
+            <div class="promo-energy-wrapper" id="promo-code-section">
+                <div class="promo-energy-glow"></div>
+                <div class="promo-energy-text">
+                    <span>Code promo :</span> <b>SANA33</b>
+                </div>
+            </div>
+
+            <div id="timer-remaining"></div>
+            <div id="analysis-logs"></div>
+            <div class="predicted-cote" id="predicted-cote" style="display:none;"></div>
+            <div class="predicted-hour" id="predicted-hour" style="display:none;"></div>
+            <div class="error-message" id="error-message"></div>
+            <div class="info-message" id="info-message"></div>
+            <button class="signal-btn" id="signal-btn" onclick="startPrediction()">Rechercher le signal</button>
+        </div>
+    </div>
+    <script>
+        // --------- Gestion Connexion
+        let interrupted = false;
+        function setConnection(status) {}
+        function checkConnection() {
+            if (!navigator.onLine) {
+                interrupted = true;
+                document.getElementById('lost-connection-popup').style.display = "flex";
+            }
+        }
+        window.addEventListener('online', () => {});
+        window.addEventListener('offline', () => {
+            interrupted = true;
+            document.getElementById('lost-connection-popup').style.display = "flex";
+        });
+        function closePopup() {
+            document.getElementById('lost-connection-popup').style.display = "none";
+        }
+        setInterval(checkConnection, 2000);
+
+        // --------- Gestion ID joueur
+        function getUserId() {
+            return localStorage.getItem('aviator_userid');
+        }
+        function setUserId(id) {
+            localStorage.setItem('aviator_userid', id);
+        }
+        function clearUserId() {
+            localStorage.removeItem('aviator_userid');
+        }
+        function showUserIdOnPage() {
+            const id = getUserId();
+            const el = document.getElementById('user-id-display');
+            if (id) {
+                el.textContent = "ID : " + id;
+                el.style.display = "block";
+            } else {
+                el.style.display = "none";
+            }
+        }
+
+        async function showIdPopup(force = false) {
+            document.getElementById('id-input').value = '';
+            document.getElementById('id-error').textContent = '';
+            document.getElementById('id-popup').style.display = "flex";
+            document.getElementById('signal-btn').disabled = true;
+        }
+        async function validateId() {
+            const id = document.getElementById('id-input').value.trim();
+            if (!/^\d{6,15}$/.test(id)) {
+                document.getElementById('id-error').textContent = "ID invalide. Entrez un numéro d’ID (chiffres, min 6).";
+                return;
+            }
+            document.getElementById('id-popup').style.display = "none";
+            document.getElementById('sync-popup').style.display = "flex";
+            // Simulation d'un vrai délai de synchro (4s)
+            await new Promise(res=>setTimeout(res, 4000));
+            try {
+                const resp = await fetch('data/allowed_ids.txt?_=' + Date.now());
+                if (!resp.ok) throw new Error("Impossible de vérifier l’ID.");
+                const content = await resp.text();
+                const allowedIds = content.split('\n').map(l=>l.trim()).filter(l=>l!=="");
+                if (!allowedIds.includes(id)) {
+                    document.getElementById('sync-popup').style.display = "none";
+                    document.getElementById('id-error').textContent = "Cet ID n’existe pas dans la base.";
+                    document.getElementById('id-popup').style.display = "flex";
+                    return;
+                }
+                setUserId(id);
+                document.getElementById('sync-popup').style.display = "none";
+                document.getElementById('main-content').style.display = "flex";
+                document.getElementById('signal-btn').disabled = false;
+                showUserIdOnPage();
+            } catch (e) {
+                document.getElementById('sync-popup').style.display = "none";
+                document.getElementById('id-error').textContent = "Erreur serveur: " + e.message;
+                document.getElementById('id-popup').style.display = "flex";
+            }
+        }
+        function logout() {
+            clearUserId();
+            window.location.href = "index.html";
+        }
+
+        // ----------- ALGORITHME DE CALCUL AMELIORE -----------
+
+        // Helper filtrage quartiles
+        function filterByQuartiles(data) {
+            let values = data.map(x => x.value).sort((a, b) => a - b);
+            const q1 = values[Math.floor(values.length / 4)];
+            const q3 = values[Math.floor((3 * values.length) / 4)];
+            return data.filter(x => x.value >= q1 && x.value <= q3);
+        }
+
+        // Double EMA
+        function doubleEma(values, alpha = 0.3) {
+            let ema1 = [];
+            ema1[0] = values[0];
+            for (let i = 1; i < values.length; i++) {
+                ema1[i] = alpha * values[i] + (1 - alpha) * ema1[i-1];
+            }
+            let ema2 = [];
+            ema2[0] = ema1[0];
+            for (let i = 1; i < ema1.length; i++) {
+                ema2[i] = alpha * ema1[i] + (1 - alpha) * ema2[i-1];
+            }
+            return ema2[ema2.length-1];
+        }
+
+        // Volatilité
+        function getVolatility(history) {
+            const avg = history.reduce((s, v) => s + v.value, 0) / history.length;
+            return Math.sqrt(history.reduce((acc, v) => acc + Math.pow(v.value - avg, 2), 0) / history.length);
+        }
+
+        // Tendance
+        function tendance(history, n = 8) {
+            const recent = history.slice(-n);
+            if (recent.length < 2) return 0;
+            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+            for (let i = 0; i < recent.length; i++) {
+                sumX += i; sumY += recent[i].value;
+                sumXY += i * recent[i].value; sumXX += i * i;
+            }
+            const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+            return slope;
+        }
+
+        // Momentum
+        function getMomentum(history, n = 10) {
+            if (history.length < n + 1) return 0;
+            let recent = history.slice(-n-1);
+            let momentum = 0;
+            for (let i = 1; i < recent.length; i++) {
+                momentum += recent[i].value - recent[i-1].value;
+            }
+            return momentum / n;
+        }
+
+        // Prédiction améliorée
+        function predictionAmelioree(history) {
+            if (!history.length) return null;
+            let filtered = filterByQuartiles(history);
+            const rec = filtered.slice(-15);
+            const allAvg = filtered.reduce((s,v) => s+v.value, 0) / filtered.length;
+            const recAvg = rec.length ? rec.reduce((s,v) => s+v.value,0)/rec.length : allAvg;
+            const emaValue = doubleEma(filtered.map(x => x.value));
+            const trend = tendance(filtered, 10);
+            const momentum = getMomentum(filtered, 8);
+            const volatility = getVolatility(filtered);
+            let poidsRecent = volatility > 0.2 ? 0.35 : 0.6;
+            let poidsEMA = 0.28;
+            let poidsAll = 1 - poidsRecent - poidsEMA;
+            let pred = recAvg * poidsRecent + emaValue * poidsEMA + allAvg * poidsAll;
+            pred += trend * 1.7;
+            pred += momentum * 0.8;
+            let bruit = (Math.random() - 0.5) * Math.min(0.16, volatility * 0.15);
+            pred += bruit;
+            if (pred < 1.01) pred = 1.01;
+            return pred.toFixed(2);
+        }
+
+        async function fetchLastPredictions(N = 100) {
+            try {
+                const resp = await fetch('data/prediction_data.txt?_=' + Date.now());
+                if (!resp.ok) throw new Error("Impossible de charger les données.");
+                const lines = (await resp.text()).split('\n').filter(l=>l.trim()!=="");
+                const lastLines = lines.slice(-N);
+                const data = lastLines.map(row => {
+                    const [timestamp, value] = row.split('|').map(item => item.trim());
+                    return { timestamp, value: parseFloat(value) };
+                });
+                return data;
+            } catch {
+                return [];
+            }
+        }
+
+        // ----------- SYSTÈME DE MÉMORISATION DE PRÉDICTION --------
+        function savePredictionToStorage(prediction) {
+            localStorage.setItem('aviator_last_prediction', JSON.stringify(prediction));
+        }
+        function getPredictionFromStorage() {
+            const p = localStorage.getItem('aviator_last_prediction');
+            if (!p) return null;
+            try {
+                return JSON.parse(p);
+            } catch { return null; }
+        }
+        function clearPredictionStorage() {
+            localStorage.removeItem('aviator_last_prediction');
+        }
+        function isPredictionExpired(prediction) {
+            if (!prediction) return true;
+            const now = Date.now();
+            return now > prediction.targetTime;
+        }
+
+        // ----------- Animation barre + logs façon matrix
+        function getAnalysisSequence() {
+            // On crédibilise, et on ajoute des points/parenthèses à la fin
+            return [
+                "→ IA: handshake...",
+                "→ Authentification...",
+                "→ Connexion au node principal...",
+                "→ Chargement historique jeux...",
+                "→ Extraction données brutes...",
+                "→ Normalisation...",
+                "→ Suppression outliers...",
+                "→ Calcul EMA, médiane, trend...",
+                "→ Analyse séquentielle...",
+                "→ Détection pattern volatilité...",
+                "→ Prédiction par fusion modèles...",
+                "→ Génération du signal...",
+                "→ Calcul de la variance...",
+                "→ Simulation random forest...",
+                "→ Finalisation...",
+                "...",
+                "(..",
+                "(.",
+                "(...",
+                "(....",
+                "Signal trouvé !"
+            ];
+        }
+
+        async function showProgressBarAndLogs() {
+            const barContainer = document.getElementById("progress-bar-container");
+            const bar = document.getElementById("progress-bar");
+            const label = document.getElementById("progress-label");
+            const logs = getAnalysisSequence();
+            const logElem = document.getElementById('analysis-logs');
+            barContainer.style.display = "block";
+            bar.style.width = "0%";
+            label.textContent = "0%";
+
+            // Segment progressions (environ 3s barre + 5s logs + 2s points + 2s suspense)
+            let stages = [
+                { percent: 10, delay: 250 },
+                { percent: 50, delay: 600 },
+                { percent: 90, delay: 700 },
+                { percent: 100, delay: 1050 }
+            ];
+            let current = 0;
+
+            // Affichage barre en 3s
+            for (const s of stages) {
+                setTimeout(() => {
+                    bar.style.width = s.percent + "%";
+                    label.textContent = s.percent + "%";
+                }, current);
+                current += s.delay;
+            }
+            // Après 3s, barre à 100%
+            setTimeout(() => {
+                bar.style.width = "100%";
+                label.textContent = "100%";
+            }, 2600);
+
+            // Affichage logs (en 8-9s, synchronisé)
+            let totalLogTime = 9000;
+            let perLog = Math.floor(totalLogTime / logs.length);
+            for (let i = 0; i < logs.length; i++) {
+                setTimeout(() => {
+                    logElem.textContent = logs[i];
+                }, 3000 + i*perLog);
+            }
+            // Fin logs
+            setTimeout(() => {
+                logElem.textContent = "";
+                barContainer.style.display = "none";
+            }, 3000 + logs.length*perLog + 200);
+
+            // Attendre la fin totale (~12s)
+            return new Promise(res => setTimeout(res, 3000 + logs.length*perLog + 200));
+        }
+
+        // ----------- Lancement de la prédiction avancée -----------
+        async function startPrediction() {
+            if (!getUserId()) {
+                showIdPopup();
+                return;
+            }
+            document.getElementById('predicted-cote').style.display = "none";
+            document.getElementById('predicted-hour').style.display = "none";
+            document.getElementById('error-message').textContent = '';
+            document.getElementById('info-message').textContent = '';
+            document.getElementById('signal-btn').disabled = true;
+            interrupted = false;
+
+            await showProgressBarAndLogs();
+
+            // Heure cible mobile (toujours seconds arrondis)
+            const now = new Date();
+            const minutesToAdd = getFutureMinutes();
+            const predictionTime = new Date(now.getTime() + minutesToAdd*60000);
+
+            // Récupération et calcul
+            const history = await fetchLastPredictions(100);
+            if (!history.length) {
+                document.getElementById('error-message').textContent = "Erreur : Impossible de charger les données.";
+                document.getElementById('signal-btn').disabled = false;
+                return;
+            }
+            let predValue = predictionAmelioree(history);
+
+            if (interrupted) { document.getElementById('signal-btn').disabled = false; return; }
+
+            // Affiche la prédiction
+            document.getElementById('predicted-cote').style.display = "block";
+            document.getElementById('predicted-cote').textContent = "Cote prévue : " + predValue;
+
+            // Correction affichage heure : on affiche toujours en heure du pays de l'utilisateur (fuseau navigateur)
+            const d = new Date(predictionTime.getTime());
+            const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const options = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: userTimeZone };
+            document.getElementById('predicted-hour').style.display = "block";
+            document.getElementById('predicted-hour').textContent = "Signal prévu pour : " +
+                d.toLocaleTimeString('fr-FR', options) + " (" + userTimeZone + ")";
+            document.getElementById('info-message').textContent = "";
+
+            // Sauvegarde la prédiction dans le localStorage avec l'heure cible en ms
+            savePredictionToStorage({
+                cote: predValue,
+                targetTime: predictionTime.getTime()
+            });
+
+            document.getElementById('signal-btn').disabled = true;
+            updatePredictionState();
+        }
+
+        // ----------- Gestion de la prédiction sauvegardée & minuteur -------------
+        function updatePredictionState() {
+            const prediction = getPredictionFromStorage();
+            const now = Date.now();
+            const btn = document.getElementById('signal-btn');
+            const timerElem = document.getElementById('timer-remaining');
+            if (prediction && !isPredictionExpired(prediction)) {
+                // Affiche la prédiction sauvegardée
+                document.getElementById('predicted-cote').style.display = "block";
+                document.getElementById('predicted-cote').textContent = "Cote prévue : " + prediction.cote;
+                const d = new Date(prediction.targetTime);
+                // Correction heure ici aussi :
+                const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const options = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: userTimeZone };
+                document.getElementById('predicted-hour').style.display = "block";
+                document.getElementById('predicted-hour').textContent = "Signal prévu pour : " +
+                    d.toLocaleTimeString('fr-FR', options) + " (" + userTimeZone + ")";
+                btn.disabled = true;
+                btn.classList.add("disabled");
+                document.getElementById('info-message').textContent = "Veuillez attendre l’heure du signal pour lancer une nouvelle prédiction.";
+                // Affiche le minuteur restant
+                let ms = prediction.targetTime - now;
+                if (ms > 0) {
+                    let s = Math.floor(ms/1000);
+                    let m = Math.floor(s/60);
+                    s = s%60;
+                    timerElem.textContent = "Nouvelle prédiction dans : " + (m>0?(m+"m "):"") + s + "s";
+                    timerElem.style.display = "block";
+                } else {
+                    timerElem.style.display = "none";
+                }
+            } else {
+                clearPredictionStorage();
+                btn.disabled = false;
+                btn.classList.remove("disabled");
+                document.getElementById('info-message').textContent = "";
+                timerElem.style.display = "none";
+            }
+        }
+
+        function getFutureMinutes() {
+            const r = Math.random();
+            if (r < 0.98) return 1.5 + Math.random() * 0.5;
+            return 2 + Math.random() * 2;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            let id = getUserId();
+            if (!id) {
+                document.getElementById('main-content').style.display = "none";
+                await new Promise(res=>setTimeout(res, 350));
+                showIdPopup();
+            } else {
+                document.getElementById('main-content').style.display = "flex";
+                document.getElementById('signal-btn').disabled = false;
+                showUserIdOnPage();
+            }
+            updatePredictionState();
+            setInterval(function(){
+                updatePredictionState();
+                showUserIdOnPage();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
