@@ -1,1 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BOT TELEGRAM - ZACK PCS</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #121212;
+      font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+      min-height: 100vh;
+      width: 100%;
+    }
+    .container {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 0 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .lang-switch {
+      width: 100%;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 18px;
+      margin-bottom: 18px;
+      gap: 10px;
+      user-select: none;
+    }
+    .flag {
+      width: 30px;
+      height: 22px;
+      cursor: pointer;
+      border-radius: 6px;
+      box-shadow: 0 1px 5px #0002;
+      border: 1px solid #e2e2e2;
+      transition: outline 0.18s;
+      outline: 2.5px solid transparent;
+      display: inline-block;
+    }
+    .flag.selected {
+      outline: 2.5px solid #2d7ff9;
+    }
+    .title {
+      font-size: 1.3em;
+      font-weight: bold;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .main-name {
+      font-size: 1.5em;
+      font-weight: bold;
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+      text-align: center;
+    }
+    .description {
+      font-size: 1.02em;
+      margin-bottom: 28px;
+      text-align: center;
+      background: #f5f5f5;
+      border-radius: 7px;
+      padding: 10px 8px;
+      width: 100%;
+      box-sizing: border-box;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .links-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      margin-bottom: 36px;
+    }
+    .link-card {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      background: #f0f0f0;
+      border-radius: 9px;
+      padding: 15px 15px 10px 15px;
+      text-decoration: none;
+      color: #111;
+      font-size: 1.05em;
+      font-family: inherit;
+      font-weight: 600;
+      border: 2px solid #111;
+      transition: background 0.13s, border 0.13s;
+      margin-bottom: 6px;
+    }
+    .link-card:hover {
+      background: #e0e0e0;
+      border: 2px solid #333;
+    }
+    .link-main {
+      font-size: 1.08em;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .link-icon {
+      width: 20px;
+      height: 20px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .link-sub {
+      font-size: 0.93em;
+      color: #555;
+      font-family: inherit;
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+    .info-section {
+      width: 100%;
+      margin-top: 12px;
+      margin-bottom: 18px;
+      display: flex;
+      justify-content: center;
+    }
+    .info-card {
+      background: #f8f8f8;
+      border-radius: 10px;
+      border: 2px solid #111;
+      box-shadow: 0 2px 6px #0001;
+      padding: 18px 16px 13px 16px;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .info-title {
+      font-weight: bold;
+      letter-spacing: .5px;
+      font-size: 1.08em;
+      margin-bottom: 8px;
+      color: #222;
+    }
+    .info-content {
+      font-size: .99em;
+      color: #353535;
+      font-weight: 500;
+      line-height: 1.6;
+    }
+    .bot-link-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 38px;
+      margin-top: 10px;
+    }
+    .bot-link-card {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      background: #f0f0f0;
+      border-radius: 9px;
+      padding: 15px 15px 12px 15px;
+      text-decoration: none;
+      color: #111;
+      font-size: 1.07em;
+      font-family: inherit;
+      font-weight: 600;
+      border: 2px solid #111;
+      transition: background 0.13s, border 0.13s;
+      margin-bottom: 0;
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 48px;
+    }
+    .bot-link-card:hover {
+      background: #e0e0e0;
+      border: 2px solid #333;
+    }
+    .bot-link-icon {
+      width: 22px;
+      height: 22px;
+      margin-right: 12px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    @media (max-width: 520px) {
+      .container { max-width: 99vw; }
+      .description { font-size: .97em; padding: 8px 4px; }
+      .main-name { font-size: 1.13em; }
+      .info-card { padding: 12px 6px 10px 8px; }
+      .bot-link-card { padding: 12px 8px 10px 8px; font-size: .99em;}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="lang-switch">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_France.svg" 
+        class="flag selected" id="fr-flag" alt="Français">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Flag_of_the_United_States.svg" 
+        class="flag" id="en-flag" alt="English">
+    </div>
+    <div class="title" id="title">BOT TELEGRAM</div>
+    <div class="main-name" id="main-name">ZACK PCS</div>
+    <div class="description" id="desc">
+      Bienvenue.<br>
+      Je partage des bots pour gagner au casino et d’autres astuces.<br>
+      Découvre et contacte-moi sur Telegram !
+    </div>
+    <div class="links-section">
+      <a href="https://t.me/+eMMgVPXX3clmYWM0" class="link-card" target="_blank">
+        <span class="link-main" id="canal-main">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="link-icon" alt="Telegram">
+          Accéder au canal Telegram
+        </span>
+        <span class="link-sub" id="canal-sub">CANAL TELEGRAM</span>
+      </a>
+      <a href="https://t.me/+eMMgVPXX3clmYWM0" class="link-card" target="_blank">
+        <span class="link-main" id="contact-main">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="link-icon" alt="Telegram">
+          Contacter sur Telegram
+        </span>
+        <span class="link-sub" id="contact-sub">CANAL TELEGRAM</span>
+      </a>
+    </div>
+    <div class="info-section">
+      <div class="info-card">
+        <div class="info-title" id="info-title">Informations</div>
+        <div class="info-content" id="info-content">
+          Le bot Aviator est conçu pour t’aider à maximiser tes chances de réussite au jeu. Profite d’analyses précises et de conseils exclusifs. Pour activer le bot ou obtenir un accompagnement personnalisé, contacte-moi directement sur Telegram.
+        </div>
+      </div>
+    </div>
+    <div class="bot-link-section">
+      <a href="https://bot9082.github.io/Pr-dictions-Lucky-Jet/" class="bot-link-card" target="_blank" id="bot-link-card">
+        <img src="https://cdn-icons-png.flaticon.com/512/5968/5968756.png" class="bot-link-icon" alt="Bot Aviator">
+        <span id="bot-link-text">Accéder au Bot Aviator</span>
+      </a>
+    </div>
+  </div>
+  <script>
+    // Texts in both languages (FR/EN) – everything is here for full translation
+    const texts = {
+      fr: {
+        title: "BOT TELEGRAM",
+        mainName: "ZACK CASH",
+        desc: "Bienvenue.<br>Je partage des bots pour gagner au casino et d’autres astuces.<br>Découvre et contacte-moi sur Telegram !",
+        canalMain: "Accéder au canal Telegram",
+        canalSub: "CANAL TELEGRAM",
+        contactMain: "Contacter sur Telegram",
+        contactSub: "CONTACT TELEGRAM",
+        infoTitle: "Informations",
+        infoContent: "Le bot Aviator est conçu pour t’aider à maximiser tes chances de réussite au jeu. Profite d’analyses précises et de conseils exclusifs. Pour activer le bot ou obtenir un accompagnement personnalisé, contacte-moi directement sur Telegram.",
+        botLinkText: "Accéder au Bot Aviator"
+      },
+      en: {
+        title: "TELEGRAM BOT",
+        mainName: "ZACK CASH",
+        desc: "Welcome.<br>I share casino-winning bots and other tips.<br>Discover and contact me on Telegram!",
+        canalMain: "Access the Telegram channel",
+        canalSub: "TELEGRAM CHANNEL",
+        contactMain: "Contact on Telegram",
+        contactSub: "TELEGRAM CONTACT",
+        infoTitle: "Information",
+        infoContent: "The Aviator bot is designed to help you maximize your chances of success in the game. Benefit from accurate analyses and exclusive tips. To activate the bot or get personalized support, contact me directly on Telegram.",
+        botLinkText: "Access the Aviator Bot"
+      }
+    };
+
+    function setLang(lang) {
+      document.getElementById('title').innerText = texts[lang].title;
+      document.getElementById('main-name').innerText = texts[lang].mainName;
+      document.getElementById('desc').innerHTML = texts[lang].desc;
+      // For the link-main spans, update only the text node (after img node)
+      let canalMainSpan = document.getElementById('canal-main');
+      canalMainSpan.childNodes[1].nodeValue = " " + texts[lang].canalMain;
+      let contactMainSpan = document.getElementById('contact-main');
+      contactMainSpan.childNodes[1].nodeValue = " " + texts[lang].contactMain;
+      document.getElementById('canal-sub').innerText = texts[lang].canalSub;
+      document.getElementById('contact-sub').innerText = texts[lang].contactSub;
+      document.getElementById('info-title').innerText = texts[lang].infoTitle;
+      document.getElementById('info-content').innerText = texts[lang].infoContent;
+      document.getElementById('bot-link-text').innerText = texts[lang].botLinkText;
+      document.getElementById('fr-flag').classList.toggle('selected', lang === 'fr');
+      document.getElementById('en-flag').classList.toggle('selected', lang === 'en');
+      document.documentElement.lang = lang;
+    }
+
+    document.getElementById('fr-flag').onclick = () => setLang('fr');
+    document.getElementById('en-flag').onclick = () => setLang('en');
+  </script>
+</body>
+</html>
+
 
